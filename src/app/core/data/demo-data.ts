@@ -1,4 +1,4 @@
-import type { Consultation } from '../models/consultation.model';
+﻿import type { Consultation } from '../models/consultation.model';
 import type { Medecin } from '../models/medecin.model';
 import type { Patient } from '../models/patient.model';
 import type { RendezVous } from '../models/rendez-vous.model';
@@ -135,7 +135,7 @@ export const DEMO_PATIENTS: Patient[] = [
     groupe_sanguin: 'AB+',
     poids: 86,
     telephone: '+221 77 344 20 10',
-    adresse: 'Mbour, Thi�s',
+    adresse: 'Mbour, Thiès',
     email: 'ousmane.diallo@email.sn',
     numero_securite_sociale: 'SN-SS-721201-026',
     allergies: 'Aucune',
@@ -257,6 +257,44 @@ export const DEMO_PATIENTS: Patient[] = [
     traitements_cours: 'Creme dermique',
     medecin_traitant: 4,
     statut: 'actif'
+  }  ,
+  {
+    id: 11,
+    numero_dossier: 'PAT-DKR-0011',
+    nom: 'Diop',
+    prenom: 'Abdoulaye',
+    date_naissance: '1955-12-03',
+    sexe: 'Homme',
+    groupe_sanguin: 'B-',
+    poids: 70,
+    telephone: '+221 70 789 01 23',
+    adresse: 'Grand Yoff, Dakar',
+    email: 'abdoulaye.diop@email.sn',
+    numero_securite_sociale: 'SN-SS-551203-097',
+    allergies: 'Aucune',
+    antecedents_medicaux: 'Arthrose',
+    traitements_cours: 'Paracetamol',
+    medecin_traitant: 1,
+    statut: 'actif'
+  },
+  {
+    id: 12,
+    numero_dossier: 'PAT-DKR-0012',
+    nom: 'Cisse',
+    prenom: 'Fatimata',
+    date_naissance: '1998-08-25',
+    sexe: 'Femme',
+    groupe_sanguin: 'O+',
+    poids: 59,
+    telephone: '+221 78 890 12 34',
+    adresse: 'Point E, Dakar',
+    email: 'fatimata.cisse@email.sn',
+    numero_securite_sociale: 'SN-SS-980825-104',
+    allergies: 'Aucune',
+    antecedents_medicaux: 'Aucun',
+    traitements_cours: 'Aucun',
+    medecin_traitant: 2,
+    statut: 'inactif'
   }
 ];
 
@@ -440,3 +478,5 @@ export const DEMO_UTILISATEURS: Utilisateur[] = [
     mot_de_passe: 'pass456'
   }
 ];
+
+

@@ -1,12 +1,4 @@
-<section>
-  <div class="page-header">
-    <div>
-      <h2>Medecins</h2>
-      <p>Gestion des profils medecins et statuts d'activite.</p>
-    </div>
-    <button class="btn btn-primary" type="button" (click)="openCreateForm()">Nouveau medecin</button>
-  </div>
-
+<section class="medecins-shell">
   @if (loading()) {
     <div class="loading-line"></div>
   }
@@ -15,20 +7,59 @@
     <div class="alert error">{{ errorMessage() }}</div>
   }
 
+  <section class="metrics-grid">
+    <article class="metric-card card tone-teal">
+      <div class="metric-head">
+        <span class="metric-icon material-symbols-outlined" aria-hidden="true">medical_services</span>
+      </div>
+      <strong>{{ totalMedecins() }}</strong>
+      <p>Total médecins</p>
+      <small>Corps médical global</small>
+    </article>
+
+    <article class="metric-card card tone-green">
+      <div class="metric-head">
+        <span class="metric-icon material-symbols-outlined" aria-hidden="true">how_to_reg</span>
+        <span class="metric-pulse">En service</span>
+      </div>
+      <strong>{{ totalActifs() }}</strong>
+      <p>Actifs</p>
+      <small>Disponibles en consultation</small>
+    </article>
+
+    <article class="metric-card card tone-orange">
+      <div class="metric-head">
+        <span class="metric-icon material-symbols-outlined" aria-hidden="true">event_busy</span>
+      </div>
+      <strong>{{ totalConges() }}</strong>
+      <p>En congé</p>
+      <small>Absences planifiées</small>
+    </article>
+
+    <article class="metric-card card tone-slate">
+      <div class="metric-head">
+        <span class="metric-icon material-symbols-outlined" aria-hidden="true">block</span>
+      </div>
+      <strong>{{ totalInactifs() }}</strong>
+      <p>Inactifs</p>
+      <small>Hors service</small>
+    </article>
+  </section>
+
   @if (showForm()) {
     <section class="card form-card">
-      <h3>{{ editingId() ? 'Modifier un medecin' : 'Ajouter un medecin' }}</h3>
+      <h3>{{ editingId() ? 'Modifier un médecin' : 'Ajouter un médecin' }}</h3>
       <form [formGroup]="form" (ngSubmit)="submit()" class="form-grid" novalidate>
         <div class="field">
-          <label for="numero_ordre">Numero d'ordre</label>
+          <label for="numero_ordre" class="required-label">Numéro d'ordre</label>
           <input id="numero_ordre" formControlName="numero_ordre" />
           @if (form.controls.numero_ordre.invalid && form.controls.numero_ordre.touched) {
-            <p class="error">Numero obligatoire.</p>
+            <p class="error">Matricule obligatoire (5 caractères min.).</p>
           }
         </div>
 
         <div class="field">
-          <label for="nom">Nom</label>
+          <label for="nom" class="required-label">Nom</label>
           <input id="nom" formControlName="nom" />
           @if (form.controls.nom.invalid && form.controls.nom.touched) {
             <p class="error">Nom obligatoire.</p>
@@ -36,31 +67,31 @@
         </div>
 
         <div class="field">
-          <label for="prenom">Prenom</label>
+          <label for="prenom" class="required-label">Prénom</label>
           <input id="prenom" formControlName="prenom" />
           @if (form.controls.prenom.invalid && form.controls.prenom.touched) {
-            <p class="error">Prenom obligatoire.</p>
+            <p class="error">Prénom obligatoire.</p>
           }
         </div>
 
         <div class="field">
-          <label for="specialite">Specialite</label>
+          <label for="specialite" class="required-label">Spécialité</label>
           <input id="specialite" formControlName="specialite" />
           @if (form.controls.specialite.invalid && form.controls.specialite.touched) {
-            <p class="error">Specialite obligatoire.</p>
+            <p class="error">Spécialité obligatoire.</p>
           }
         </div>
 
         <div class="field">
-          <label for="telephone">Telephone</label>
+          <label for="telephone" class="required-label">Téléphone</label>
           <input id="telephone" formControlName="telephone" />
           @if (form.controls.telephone.invalid && form.controls.telephone.touched) {
-            <p class="error">Telephone invalide.</p>
+            <p class="error">Téléphone invalide.</p>
           }
         </div>
 
         <div class="field">
-          <label for="email">Email</label>
+          <label for="email" class="required-label">Email</label>
           <input id="email" formControlName="email" type="email" />
           @if (form.controls.email.invalid && form.controls.email.touched) {
             <p class="error">Email valide obligatoire.</p>
@@ -68,10 +99,10 @@
         </div>
 
         <div class="field">
-          <label for="statut">Statut</label>
+          <label for="statut" class="required-label">Statut</label>
           <select id="statut" formControlName="statut">
             <option value="actif">Actif</option>
-            <option value="conge">Conge</option>
+            <option value="conge">En congé</option>
             <option value="inactif">Inactif</option>
           </select>
         </div>
@@ -86,73 +117,173 @@
     </section>
   }
 
-  <section class="card">
-    <div class="toolbar">
-      <input
-        class="search"
-        type="search"
-        placeholder="Rechercher par nom, specialite, numero d'ordre..."
-        (input)="onSearchChange($any($event.target).value)"
-      />
-      <select (change)="onFilterChange($any($event.target).value)">
-        <option value="tous">Tous statuts</option>
+  <section class="card medecins-board">
+    <div class="board-toolbar">
+      <label class="search-input">
+        <span class="search-glyph" aria-hidden="true"></span>
+        <input
+          type="search"
+          placeholder="Rechercher par nom, spécialité, matricule..."
+          [value]="searchTerm()"
+          (input)="onSearchChange($any($event.target).value)"
+        />
+      </label>
+
+      <select [value]="statutFilter()" (change)="onStatutFilterChange($any($event.target).value)">
+        <option value="tous">Tous les statuts</option>
         <option value="actif">Actif</option>
-        <option value="conge">Conge</option>
+        <option value="conge">En congé</option>
         <option value="inactif">Inactif</option>
       </select>
-      <button class="btn btn-ghost" type="button" (click)="loadMedecins()">Recharger</button>
+
+      <select [value]="specialiteFilter()" (change)="onSpecialiteFilterChange($any($event.target).value)">
+        <option value="toutes">Toutes les spécialités</option>
+        @for (specialite of availableSpecialites(); track specialite) {
+          <option [value]="specialite">{{ specialite }}</option>
+        }
+      </select>
+
+      <button class="icon-tool" type="button" title="Recharger" (click)="loadMedecins()">
+        <span class="material-symbols-outlined" aria-hidden="true">refresh</span>
+      </button>
+      <button class="icon-tool" type="button" title="Exporter" (click)="exportMedecins()">
+        <span class="material-symbols-outlined" aria-hidden="true">download</span>
+      </button>
+      <div class="view-toggle" aria-label="Mode d'affichage">
+        <button
+          class="icon-tool"
+          type="button"
+          title="Vue cartes"
+          [class.active]="viewMode() === 'cards'"
+          (click)="setViewMode('cards')"
+        >
+          <span class="material-symbols-outlined" aria-hidden="true">grid_view</span>
+        </button>
+        <button
+          class="icon-tool"
+          type="button"
+          title="Vue liste"
+          [class.active]="viewMode() === 'list'"
+          (click)="setViewMode('list')"
+        >
+          <span class="material-symbols-outlined" aria-hidden="true">view_list</span>
+        </button>
+      </div>
+      <button class="btn btn-primary toolbar-action" type="button" (click)="openCreateForm()">Nouveau médecin</button>
     </div>
 
-    <div class="table-wrapper">
-      <table>
-        <thead>
-          <tr>
-            <th>Numero ordre</th>
-            <th>Nom complet</th>
-            <th>Specialite</th>
-            <th>Telephone</th>
-            <th>Email</th>
-            <th>Statut</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          @if (paginatedMedecins().length === 0) {
+    @if (paginatedMedecins().length === 0) {
+      <div class="empty-board">
+        <h4>Aucun médecin correspondant</h4>
+        <p>Essaie de modifier les filtres ou ajoute un nouveau profil médecin.</p>
+      </div>
+    } @else if (viewMode() === 'cards') {
+      <div class="cards-grid">
+        @for (medecin of paginatedMedecins(); track medecin.id) {
+          <article class="doctor-card" [class]="getCardTone(medecin)">
+            <div class="card-hero">
+              <div class="card-overlay"></div>
+              <div class="hero-top">
+                <span class="doctor-avatar">{{ getInitials(medecin) }}</span>
+                <span class="status-pill" [class]="'status-pill ' + getStatusClass(medecin)">{{ getStatusLabel(medecin) }}</span>
+              </div>
+
+              <div class="hero-content">
+                <h4>Dr {{ medecin.prenom }} {{ medecin.nom }}</h4>
+                <p>{{ medecin.specialite }}</p>
+              </div>
+            </div>
+
+            <div class="hero-stats">
+              <article>
+                <strong>{{ getMonthlyConsultations(medecin) }}</strong>
+                <span>Ce mois</span>
+              </article>
+              <article>
+                <strong>{{ getPatientsSuivis(medecin) }}</strong>
+                <span>Patients</span>
+              </article>
+              <article>
+                <strong>{{ getExperienceAnnees(medecin) }}a</strong>
+                <span>Expér.</span>
+              </article>
+            </div>
+
+            <div class="card-body">
+              <p class="section-label">Disponibilité</p>
+              <div class="days-row">
+                @for (day of getDisponibiliteJours(medecin); track day.label) {
+                  <span class="day-pill" [class.active]="day.active">{{ day.label }}</span>
+                }
+              </div>
+
+              <div class="line-item">
+                <span class="material-symbols-outlined" aria-hidden="true">local_hospital</span>
+                <p>{{ getSalleLabel(medecin) }}</p>
+              </div>
+              <div class="line-item">
+                <span class="material-symbols-outlined" aria-hidden="true">mail</span>
+                <p>{{ medecin.email }}</p>
+              </div>
+            </div>
+
+            <div class="card-actions">
+              <button class="btn btn-ghost" type="button" (click)="openEditForm(medecin)">Modifier</button>
+              <button class="btn btn-danger" type="button" (click)="deleteMedecin(medecin.id)">Supprimer</button>
+            </div>
+          </article>
+        }
+      </div>
+    } @else {
+      <div class="table-wrap">
+        <table class="medecins-table">
+          <thead>
             <tr>
-              <td colspan="7">Aucun medecin trouve.</td>
+              <th>Médecin</th>
+              <th>Spécialité</th>
+              <th>Téléphone</th>
+              <th>Email</th>
+              <th>Statut</th>
+              <th>Actions</th>
             </tr>
-          } @else {
+          </thead>
+          <tbody>
             @for (medecin of paginatedMedecins(); track medecin.id) {
               <tr>
-                <td>{{ medecin.numero_ordre }}</td>
-                <td>{{ medecin.prenom }} {{ medecin.nom }}</td>
+                <td>
+                  <div class="doctor-cell">
+                    <span class="doctor-mini">{{ getInitials(medecin) }}</span>
+                    <div>
+                      <strong>Dr {{ medecin.prenom }} {{ medecin.nom }}</strong>
+                      <small>{{ medecin.numero_ordre }}</small>
+                    </div>
+                  </div>
+                </td>
                 <td>{{ medecin.specialite }}</td>
                 <td>{{ medecin.telephone }}</td>
                 <td>{{ medecin.email }}</td>
+                <td><span class="status-pill" [class]="'status-pill ' + getStatusClass(medecin)">{{ getStatusLabel(medecin) }}</span></td>
                 <td>
-                  <span class="status-pill" [class]="'status-pill ' + medecin.statut">{{ medecin.statut }}</span>
-                </td>
-                <td>
-                  <div class="actions">
+                  <div class="list-actions">
                     <button class="btn btn-ghost" type="button" (click)="openEditForm(medecin)">Modifier</button>
                     <button class="btn btn-danger" type="button" (click)="deleteMedecin(medecin.id)">Supprimer</button>
                   </div>
                 </td>
               </tr>
             }
-          }
-        </tbody>
-      </table>
-    </div>
+          </tbody>
+        </table>
+      </div>
+    }
 
-    <div class="pagination">
-      <p>Page {{ currentPage() }} / {{ totalPages() }} ({{ filteredMedecins().length }} resultats)</p>
+    <div class="board-pagination">
+      <p>{{ pageRangeStart() }}-{{ pageRangeEnd() }} sur {{ filteredMedecins().length }} résultats</p>
       <div class="pagination-controls">
-        <button type="button" (click)="goToPage(currentPage() - 1)">Precedent</button>
+        <button type="button" class="icon" [disabled]="currentPage() === 1" (click)="goToPage(currentPage() - 1)">&lsaquo;</button>
         @for (page of pageNumbers(); track page) {
           <button type="button" [class.active]="page === currentPage()" (click)="goToPage(page)">{{ page }}</button>
         }
-        <button type="button" (click)="goToPage(currentPage() + 1)">Suivant</button>
+        <button type="button" class="icon" [disabled]="currentPage() === totalPages()" (click)="goToPage(currentPage() + 1)">&rsaquo;</button>
       </div>
     </div>
   </section>

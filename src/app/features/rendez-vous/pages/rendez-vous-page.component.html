@@ -1,35 +1,4 @@
-<section>
-  <div class="page-header">
-    <div>
-      <h2>Rendez-vous</h2>
-      <p>Planification, suivi des motifs et statuts de rendez-vous.</p>
-    </div>
-    <button class="btn btn-primary" type="button" (click)="openCreateForm()">Nouveau rendez-vous</button>
-  </div>
-
-  <section class="rdv-stats">
-    <article class="rdv-stat-card tone-teal">
-      <p>Total rendez-vous</p>
-      <strong>{{ totalRendezVous() }}</strong>
-      <span>Selon les filtres actifs</span>
-    </article>
-    <article class="rdv-stat-card tone-blue">
-      <p>Aujourd'hui</p>
-      <strong>{{ rendezVousAujourdhui() }}</strong>
-      <span>Planifies pour la journee</span>
-    </article>
-    <article class="rdv-stat-card tone-mint">
-      <p>Confirmes / Termines</p>
-      <strong>{{ rendezVousConfirmes() }}</strong>
-      <span>Rendez-vous aboutis</span>
-    </article>
-    <article class="rdv-stat-card highlight tone-indigo">
-      <p>Taux de confirmation</p>
-      <strong>{{ tauxConfirmation() }}%</strong>
-      <span>{{ rendezVousAnnules() }} annules</span>
-    </article>
-  </section>
-
+<section class="rdv-shell">
   @if (loading()) {
     <div class="loading-line"></div>
   }
@@ -38,186 +7,190 @@
     <div class="alert error">{{ errorMessage() }}</div>
   }
 
-  <section class="card view-toolbar">
-    <div class="toolbar">
-      <input
-        class="search"
-        type="search"
-        placeholder="Rechercher par patient, medecin, date ou motif"
-        [value]="searchTerm()"
-        (input)="onSearchChange($any($event.target).value)"
-      />
+  <section class="rdv-metrics">
+    <article class="rdv-metric card tone-teal">
+      <div class="metric-head">
+        <span class="metric-icon">RDV</span>
+      </div>
+      <strong>{{ totalRendezVous() }}</strong>
+      <p>Total rendez-vous</p>
+      <small>Tous les RDV</small>
+    </article>
+
+    <article class="rdv-metric card tone-green">
+      <div class="metric-head">
+        <span class="metric-icon">J</span>
+        <span class="metric-trend">+{{ rendezVousAujourdhui() }}</span>
+      </div>
+      <strong>{{ rendezVousAujourdhui() }}</strong>
+      <p>Aujourd'hui</p>
+      <small>Agenda du jour</small>
+    </article>
+
+    <article class="rdv-metric card tone-blue">
+      <div class="metric-head">
+        <span class="metric-icon">OK</span>
+      </div>
+      <strong>{{ rendezVousConfirmes() }}</strong>
+      <p>Confirmes</p>
+      <small>Confirmes ou termines</small>
+    </article>
+
+    <article class="rdv-metric card tone-red">
+      <div class="metric-head">
+        <span class="metric-icon">X</span>
+      </div>
+      <strong>{{ rendezVousAnnules() }}</strong>
+      <p>Annules ce mois</p>
+      <small>{{ tauxConfirmation() }}% de confirmations</small>
+    </article>
+  </section>
+
+  <section class="card rdv-board">
+    <div class="scope-tabs">
+      <button
+        type="button"
+        class="scope-tab"
+        [class.active]="scopeFilter() === 'tous'"
+        (click)="setScopeFilter('tous')"
+      >
+        Tous les RDV
+        <span>{{ getScopeCount('tous') }}</span>
+      </button>
+      <button
+        type="button"
+        class="scope-tab"
+        [class.active]="scopeFilter() === 'aujourdhui'"
+        (click)="setScopeFilter('aujourdhui')"
+      >
+        Aujourd'hui
+        <span>{{ getScopeCount('aujourdhui') }}</span>
+      </button>
+      <button
+        type="button"
+        class="scope-tab"
+        [class.active]="scopeFilter() === 'semaine'"
+        (click)="setScopeFilter('semaine')"
+      >
+        Cette semaine
+        <span>{{ getScopeCount('semaine') }}</span>
+      </button>
+
+      <div class="view-switch">
+        <button type="button" [class.active]="viewMode() === 'calendrier'" (click)="setViewMode('calendrier')">Calendrier</button>
+        <button type="button" [class.active]="viewMode() === 'liste'" (click)="setViewMode('liste')">Liste</button>
+      </div>
+    </div>
+
+    <div class="filters-row">
+      <label class="search-input">
+        <span>Rech.</span>
+        <input
+          type="search"
+          placeholder="Rechercher par patient, medecin, ID..."
+          [value]="searchTerm()"
+          (input)="onSearchChange($any($event.target).value)"
+        />
+      </label>
+
       <select [value]="statutFilter()" (change)="onFilterChange($any($event.target).value)">
-        <option value="tous">Tous statuts</option>
+        <option value="tous">Tous les statuts</option>
         <option value="planifie">Planifie</option>
         <option value="confirme">Confirme</option>
         <option value="termine">Termine</option>
         <option value="annule">Annule</option>
       </select>
-      <button class="btn btn-ghost" type="button" (click)="loadData()">Recharger</button>
-    </div>
 
-    <div class="view-mode-toggle">
-      <button
-        class="mode-btn"
-        type="button"
-        [class.active]="viewMode() === 'calendrier'"
-        (click)="setViewMode('calendrier')"
-      >
-        Vue calendrier
-      </button>
-      <button class="mode-btn" type="button" [class.active]="viewMode() === 'liste'" (click)="setViewMode('liste')">
-        Vue liste
-      </button>
-    </div>
-  </section>
-
-  @if (showForm()) {
-    <section class="card form-card">
-      <h3>{{ editingId() ? 'Modifier le rendez-vous' : 'Ajouter un rendez-vous' }}</h3>
-      <form [formGroup]="form" (ngSubmit)="submit()" class="form-grid" novalidate>
-        <div class="field">
-          <label for="patient_id">Patient</label>
-          <select id="patient_id" formControlName="patient_id">
-            @for (patient of patients(); track patient.id) {
-              <option [ngValue]="patient.id">{{ patient.prenom }} {{ patient.nom }}</option>
-            }
-          </select>
-        </div>
-
-        <div class="field">
-          <label for="medecin_id">Medecin</label>
-          <select id="medecin_id" formControlName="medecin_id">
-            @for (medecin of medecins(); track medecin.id) {
-              <option [ngValue]="medecin.id">Dr {{ medecin.prenom }} {{ medecin.nom }}</option>
-            }
-          </select>
-        </div>
-
-        <div class="field">
-          <label for="date_rdv">Date</label>
-          <input id="date_rdv" type="date" formControlName="date_rdv" />
-        </div>
-
-        <div class="field">
-          <label for="heure_rdv">Heure</label>
-          <input id="heure_rdv" type="time" formControlName="heure_rdv" />
-        </div>
-
-        <div class="field full-width">
-          <label for="motif">Motif</label>
-          <textarea id="motif" formControlName="motif"></textarea>
-          @if (form.controls.motif.invalid && form.controls.motif.touched) {
-            <p class="error">Motif obligatoire (4 caracteres minimum).</p>
-          }
-        </div>
-
-        <div class="field">
-          <label for="statut">Statut</label>
-          <select id="statut" formControlName="statut">
-            <option value="planifie">Planifie</option>
-            <option value="confirme">Confirme</option>
-            <option value="termine">Termine</option>
-            <option value="annule">Annule</option>
-          </select>
-        </div>
-
-        <div class="actions-row full-width">
-          <button class="btn btn-secondary" type="submit" [disabled]="saving()">
-            {{ saving() ? 'Sauvegarde...' : 'Enregistrer' }}
-          </button>
-          <button class="btn btn-ghost" type="button" (click)="cancelForm()">Annuler</button>
-        </div>
-      </form>
-    </section>
-  }
-
-  @if (viewMode() === 'calendrier') {
-    <section class="card calendar-card">
-      <div class="calendar-head">
-        <div>
-          <h3>Calendrier des rendez-vous</h3>
-          <p>Vue mensuelle des rendez-vous selon vos filtres en cours.</p>
-        </div>
-        <div class="calendar-nav">
-          <button class="btn btn-ghost" type="button" (click)="previousMonth()">Mois precedent</button>
-          <p>{{ calendarMonthLabel() }}</p>
-          <button class="btn btn-ghost" type="button" (click)="nextMonth()">Mois suivant</button>
-          <button class="btn btn-secondary" type="button" (click)="goToToday()">Aujourd'hui</button>
-        </div>
-      </div>
-
-      <div class="calendar-weekdays">
-        @for (label of weekDays; track label) {
-          <span>{{ label }}</span>
+      <select [value]="medecinFilter()" (change)="onMedecinFilterChange($any($event.target).value)">
+        <option value="tous">Tous les medecins</option>
+        @for (medecin of medecins(); track medecin.id) {
+          <option [value]="medecin.id">Dr {{ medecin.prenom }} {{ medecin.nom }}</option>
         }
-      </div>
+      </select>
 
-      <div class="calendar-grid">
-        @for (cell of calendarCells(); track cell.iso) {
-          <button
-            class="calendar-day"
-            type="button"
-            [class.out-month]="!cell.inMonth"
-            [class.today]="cell.isToday"
-            [class.selected]="cell.iso === selectedDateIso()"
-            (click)="selectDate(cell.iso)"
-          >
-            <div class="calendar-day-top">
-              <span>{{ cell.day }}</span>
-              @if (cell.items.length > 0) {
-                <small>{{ cell.items.length }}</small>
+      <input type="date" [value]="dateFilter()" (change)="onDateFilterChange($any($event.target).value)" />
+      <button class="btn btn-ghost" type="button" (click)="exportRendezVous()">Exporter</button>
+      <button class="btn btn-primary" type="button" (click)="openCreateForm()">Nouveau RDV</button>
+    </div>
+
+    @if (dateFilter()) {
+      <div class="active-date-filter">
+        <span>Filtre date actif: {{ getDateLabel(dateFilter()) }}</span>
+        <button type="button" class="btn btn-ghost btn-xs" (click)="clearDateFilter()">Retirer</button>
+      </div>
+    }
+
+    @if (showForm()) {
+      <section class="card form-card">
+        <h3>{{ editingId() ? 'Modifier le rendez-vous' : 'Ajouter un rendez-vous' }}</h3>
+        <form [formGroup]="form" (ngSubmit)="submit()" class="form-grid" novalidate>
+          <div class="field">
+            <label for="patient_id">Patient *</label>
+            <select id="patient_id" formControlName="patient_id">
+              @for (patient of patients(); track patient.id) {
+                <option [ngValue]="patient.id">{{ patient.prenom }} {{ patient.nom }}</option>
               }
-            </div>
+            </select>
+          </div>
 
-            @if (cell.items.length === 0) {
-              <p class="calendar-empty">Libre</p>
-            } @else {
-              <ul class="calendar-snippets">
-                @for (rdv of cell.items.slice(0, 2); track rdv.id) {
-                  <li>{{ rdv.heure_rdv }} - {{ getPatientNom(rdv.patient_id) }}</li>
-                }
-                @if (cell.items.length > 2) {
-                  <li>+{{ cell.items.length - 2 }} autres</li>
-                }
-              </ul>
-            }
-          </button>
-        }
-      </div>
+          <div class="field">
+            <label for="medecin_id">Medecin *</label>
+            <select id="medecin_id" formControlName="medecin_id">
+              @for (medecin of medecins(); track medecin.id) {
+                <option [ngValue]="medecin.id">Dr {{ medecin.prenom }} {{ medecin.nom }}</option>
+              }
+            </select>
+          </div>
 
-      <div class="calendar-focus">
-        <h4>{{ selectedDateLabel() }}</h4>
-        @if (selectedDayAppointments().length === 0) {
-          <p>Aucun rendez-vous pour cette date.</p>
-        } @else {
-          <div class="focus-list">
-            @for (item of selectedDayAppointments(); track item.id) {
-              <article class="focus-item">
-                <div>
-                  <p><strong>{{ item.heure_rdv }}</strong> - {{ getPatientNom(item.patient_id) }}</p>
-                  <span>Dr {{ getMedecinNom(item.medecin_id).replace('Dr ', '') }} - {{ item.motif }}</span>
-                </div>
-                <span class="status-pill" [class]="'status-pill ' + item.statut">{{ item.statut }}</span>
-              </article>
+          <div class="field">
+            <label for="date_rdv">Date *</label>
+            <input id="date_rdv" type="date" formControlName="date_rdv" />
+          </div>
+
+          <div class="field">
+            <label for="heure_rdv">Heure *</label>
+            <input id="heure_rdv" type="time" formControlName="heure_rdv" />
+          </div>
+
+          <div class="field full-width">
+            <label for="motif">Motif *</label>
+            <textarea id="motif" formControlName="motif"></textarea>
+            @if (form.controls.motif.invalid && form.controls.motif.touched) {
+              <p class="error">Motif obligatoire (4 caracteres minimum).</p>
             }
           </div>
-        }
-      </div>
-    </section>
-  }
 
-  @if (viewMode() === 'liste') {
-    <section class="card list-card">
-      <div class="table-wrapper">
-        <table>
+          <div class="field">
+            <label for="statut">Statut *</label>
+            <select id="statut" formControlName="statut">
+              <option value="planifie">Planifie</option>
+              <option value="confirme">Confirme</option>
+              <option value="termine">Termine</option>
+              <option value="annule">Annule</option>
+            </select>
+          </div>
+
+          <div class="actions-row full-width">
+            <button class="btn btn-secondary" type="submit" [disabled]="saving()">
+              {{ saving() ? 'Sauvegarde...' : 'Enregistrer' }}
+            </button>
+            <button class="btn btn-ghost" type="button" (click)="cancelForm()">Annuler</button>
+          </div>
+        </form>
+      </section>
+    }
+
+    @if (viewMode() === 'liste') {
+      <div class="table-wrapper rdv-table-wrapper">
+        <table class="rdv-table">
           <thead>
             <tr>
-              <th>Date</th>
-              <th>Heure</th>
               <th>Patient</th>
               <th>Medecin</th>
-              <th>Motif</th>
+              <th>Date & heure</th>
+              <th>Type</th>
+              <th>Salle</th>
+              <th>Duree</th>
               <th>Statut</th>
               <th>Actions</th>
             </tr>
@@ -225,23 +198,53 @@
           <tbody>
             @if (paginatedRendezVous().length === 0) {
               <tr>
-                <td colspan="7">Aucun rendez-vous trouve.</td>
+                <td colspan="8" class="empty-cell">Aucun rendez-vous trouve.</td>
               </tr>
             } @else {
               @for (item of paginatedRendezVous(); track item.id) {
                 <tr>
-                  <td>{{ item.date_rdv }}</td>
-                  <td>{{ item.heure_rdv }}</td>
-                  <td>{{ getPatientNom(item.patient_id) }}</td>
-                  <td>{{ getMedecinNom(item.medecin_id) }}</td>
-                  <td>{{ item.motif }}</td>
                   <td>
-                    <span class="status-pill" [class]="'status-pill ' + item.statut">{{ item.statut }}</span>
+                    <div class="patient-cell">
+                      <span class="patient-avatar" [style.--avatar-hue]="((item.patient_id * 42) % 360) + 'deg'">
+                        {{ getPatientInitials(item.patient_id) }}
+                      </span>
+                      <div class="meta-stack">
+                        <strong>{{ getPatientNom(item.patient_id) }}</strong>
+                        <small>{{ getPatientCode(item.patient_id) }}</small>
+                      </div>
+                    </div>
+                  </td>
+                  <td>
+                    <div class="meta-stack">
+                      <strong>{{ getMedecinNom(item.medecin_id) }}</strong>
+                      <small>{{ getMedecinSpecialite(item.medecin_id) }}</small>
+                    </div>
+                  </td>
+                  <td>
+                    <div class="meta-stack">
+                      <strong>{{ getDateLabel(item.date_rdv) }}</strong>
+                      <small>{{ item.heure_rdv }}</small>
+                    </div>
+                  </td>
+                  <td>
+                    <div class="meta-stack">
+                      <span class="type-chip" [class]="'type-chip ' + getConsultationTone(item)">{{ getConsultationType(item) }}</span>
+                      <small>{{ getTypeDescription(item) }}</small>
+                    </div>
+                  </td>
+                  <td>
+                    <span class="room-chip">{{ getSalle(item) }}</span>
+                  </td>
+                  <td>
+                    <strong class="duration-label">{{ getDuree(item) }}</strong>
+                  </td>
+                  <td>
+                    <span class="status-pill" [class]="'status-pill ' + item.statut">{{ getStatusLabel(item.statut) }}</span>
                   </td>
                   <td>
                     <div class="actions">
-                      <button class="btn btn-ghost" type="button" (click)="openEditForm(item)">Modifier</button>
-                      <button class="btn btn-danger" type="button" (click)="deleteRendezVous(item.id)">Supprimer</button>
+                      <button class="btn btn-ghost btn-xs" type="button" (click)="openEditForm(item)">Modifier</button>
+                      <button class="btn btn-danger btn-xs" type="button" (click)="deleteRendezVous(item.id)">Supprimer</button>
                     </div>
                   </td>
                 </tr>
@@ -251,16 +254,98 @@
         </table>
       </div>
 
-      <div class="pagination">
-        <p>Page {{ currentPage() }} / {{ totalPages() }} ({{ filteredRendezVous().length }} resultats)</p>
+      <div class="rdv-pagination">
+        <p>{{ pageRangeStart() }}-{{ pageRangeEnd() }} sur {{ filteredRendezVous().length }} resultats</p>
         <div class="pagination-controls">
-          <button type="button" (click)="goToPage(currentPage() - 1)">Precedent</button>
+          <button type="button" class="icon" [disabled]="currentPage() === 1" (click)="goToPage(currentPage() - 1)">&lsaquo;</button>
           @for (page of pageNumbers(); track page) {
             <button type="button" [class.active]="page === currentPage()" (click)="goToPage(page)">{{ page }}</button>
           }
-          <button type="button" (click)="goToPage(currentPage() + 1)">Suivant</button>
+          <button type="button" class="icon" [disabled]="currentPage() === totalPages()" (click)="goToPage(currentPage() + 1)">&rsaquo;</button>
         </div>
       </div>
-    </section>
-  }
+    }
+
+    @if (viewMode() === 'calendrier') {
+      <section class="calendar-card">
+        <div class="calendar-head">
+          <div>
+            <h3>Calendrier des rendez-vous</h3>
+            <p>Vue mensuelle des rendez-vous selon vos filtres.</p>
+          </div>
+          <div class="calendar-nav">
+            <button class="btn btn-ghost" type="button" (click)="previousMonth()">Mois precedent</button>
+            <p>{{ calendarMonthLabel() }}</p>
+            <button class="btn btn-ghost" type="button" (click)="nextMonth()">Mois suivant</button>
+            <button class="btn btn-secondary" type="button" (click)="goToToday()">Aujourd'hui</button>
+          </div>
+        </div>
+
+        <div class="calendar-weekdays">
+          @for (label of weekDays; track label) {
+            <span>{{ label }}</span>
+          }
+        </div>
+
+        <div class="calendar-grid">
+          @for (cell of calendarCells(); track cell.iso) {
+            <button
+              class="calendar-day"
+              type="button"
+              [class.out-month]="!cell.inMonth"
+              [class.today]="cell.isToday"
+              [class.selected]="cell.iso === selectedDateIso()"
+              (click)="selectDate(cell.iso)"
+            >
+              <div class="calendar-day-top">
+                <span>{{ cell.day }}</span>
+                @if (cell.items.length > 0) {
+                  <small>{{ cell.items.length }}</small>
+                }
+              </div>
+
+              @if (cell.items.length === 0) {
+                <p class="calendar-empty">Libre</p>
+              } @else {
+                <ul class="calendar-snippets">
+                  @for (rdv of cell.items.slice(0, 2); track rdv.id) {
+                    <li>{{ rdv.heure_rdv }} - {{ getPatientNom(rdv.patient_id) }}</li>
+                  }
+                  @if (cell.items.length > 2) {
+                    <li>+{{ cell.items.length - 2 }} autres</li>
+                  }
+                </ul>
+              }
+            </button>
+          }
+        </div>
+
+        <div class="calendar-focus">
+          <div class="calendar-focus-head">
+            <h4>{{ selectedDateLabel() }}</h4>
+            <div class="calendar-focus-actions">
+              <button type="button" class="btn btn-ghost btn-xs" (click)="applySelectedDateToList()">Voir en liste</button>
+              <button type="button" class="btn btn-secondary btn-xs" (click)="openCreateFromSelectedDate()">Créer RDV ce jour</button>
+            </div>
+          </div>
+          @if (selectedDayAppointments().length === 0) {
+            <p>Aucun rendez-vous pour cette date.</p>
+          } @else {
+            <div class="focus-list">
+              @for (item of selectedDayAppointments(); track item.id) {
+                <article class="focus-item">
+                  <div>
+                    <p><strong>{{ item.heure_rdv }}</strong> - {{ getPatientNom(item.patient_id) }}</p>
+                    <span>{{ getMedecinNom(item.medecin_id) }} - {{ item.motif }}</span>
+                  </div>
+                  <span class="status-pill" [class]="'status-pill ' + item.statut">{{ getStatusLabel(item.statut) }}</span>
+                </article>
+              }
+            </div>
+          }
+        </div>
+      </section>
+    }
+  </section>
 </section>
+

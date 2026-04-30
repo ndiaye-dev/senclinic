@@ -1,73 +1,167 @@
 <div class="layout-shell">
   <aside class="sidebar" [class.open]="sidebarOpen()">
-    <div class="sidebar-brand">
-      <div class="brand-badge">SC</div>
+    <div class="sidebar-brand panel">
+      <div class="brand-badge">S</div>
       <div>
         <h1>SenClinic</h1>
-        <p>Gestion medicale</p>
+        <p>Suite clinique</p>
       </div>
+      <span class="brand-pin">+</span>
     </div>
 
-    <nav class="sidebar-nav">
-      @for (item of visibleMenuItems(); track item.path) {
-        <a
-          [routerLink]="item.path"
-          routerLinkActive="active"
-          [routerLinkActiveOptions]="{ exact: true }"
-          (click)="closeSidebar()"
-        >
-          {{ item.label }}
-        </a>
+    <div class="sidebar-sections">
+      @if (primaryMenuItems().length > 0) {
+        <section class="nav-section">
+          <p class="section-title">Principal</p>
+          <nav class="sidebar-nav">
+            @for (item of primaryMenuItems(); track item.path) {
+              <a
+                [routerLink]="item.path"
+                routerLinkActive="active"
+                [routerLinkActiveOptions]="{ exact: true }"
+                (click)="closeSidebar()"
+              >
+                <span class="nav-icon" aria-hidden="true"></span>
+                {{ item.label }}
+              </a>
+            }
+          </nav>
+        </section>
       }
-    </nav>
+
+      @if (clinicMenuItems().length > 0) {
+        <section class="nav-section">
+          <p class="section-title">Clinique</p>
+          <nav class="sidebar-nav">
+            @for (item of clinicMenuItems(); track item.path) {
+              <a
+                [routerLink]="item.path"
+                routerLinkActive="active"
+                [routerLinkActiveOptions]="{ exact: true }"
+                (click)="closeSidebar()"
+              >
+                <span class="nav-icon" aria-hidden="true"></span>
+                {{ item.label }}
+              </a>
+            }
+          </nav>
+        </section>
+      }
+
+      @if (adminMenuItems().length > 0) {
+        <section class="nav-section">
+          <p class="section-title">Administration</p>
+          <nav class="sidebar-nav">
+            @for (item of adminMenuItems(); track item.path) {
+              <a
+                [routerLink]="item.path"
+                routerLinkActive="active"
+                [routerLinkActiveOptions]="{ exact: true }"
+                (click)="closeSidebar()"
+              >
+                <span class="nav-icon" aria-hidden="true"></span>
+                {{ item.label }}
+              </a>
+            }
+          </nav>
+        </section>
+      }
+    </div>
+
+    <div class="sidebar-footer">
+      <a class="profile-link" routerLink="/profil" (click)="closeSidebar()">
+        <span class="nav-icon" aria-hidden="true"></span>
+        Profil
+      </a>
+      <div class="user-mini">
+        <div class="user-avatar">{{ userInitials() }}</div>
+        <div>
+          <p>{{ currentUser()?.prenom }} {{ currentUser()?.nom }}</p>
+          <span>{{ roleLabel() }}</span>
+        </div>
+      </div>
+    </div>
   </aside>
 
   <div class="overlay" [class.show]="sidebarOpen()" (click)="closeSidebar()"></div>
 
   <section class="main-content">
     <div class="topbar-shell">
-      <div class="utility-bar">
-        <form class="global-search" (submit)="goToSearchTarget($event)">
-          <span class="search-mark" aria-hidden="true"></span>
-          <input
-            type="search"
-            placeholder="Rechercher patient, medecin, rendez-vous..."
-            aria-label="Recherche globale"
-            [value]="globalSearch()"
-            (input)="updateGlobalSearch($any($event.target).value)"
-          />
-          <button type="submit">Rechercher</button>
-        </form>
-      </div>
-
       <header class="topbar">
-        <div class="topbar-left">
+        <div class="topbar-context">
           <button class="mobile-menu-btn" type="button" (click)="toggleSidebar()">Menu</button>
-          <div class="topbar-brand">
-            <div class="topbar-brand-badge">SC</div>
-            <div>
-              <p class="topbar-title">SenClinic</p>
-              <p class="topbar-subtitle">Plateforme clinique nationale <span class="live-badge">En ligne</span></p>
+          <div class="context-copy">
+            <p class="topbar-eyebrow">{{ topbarEyebrow() }}</p>
+            <p class="topbar-title">{{ topbarTitle() }}</p>
+            <p class="topbar-subtitle">{{ topbarSubtitle() }}</p>
+          </div>
+        </div>
+
+        <div class="topbar-tools">
+          <form class="global-search" (submit)="goToSearchTarget($event)">
+            <span class="search-mark" aria-hidden="true"></span>
+            <input
+              type="search"
+              placeholder="Recherche rapide..."
+              aria-label="Recherche globale"
+              [value]="globalSearch()"
+              (input)="updateGlobalSearch($any($event.target).value)"
+            />
+          </form>
+          <button class="icon-btn" type="button" aria-label="Calendrier">
+            <span class="material-symbols-outlined icon-symbol" aria-hidden="true">calendar_month</span>
+          </button>
+          <button class="icon-btn has-dot" type="button" aria-label="Notifications">
+            <span class="material-symbols-outlined icon-symbol" aria-hidden="true">notifications</span>
+            <span class="notif-dot" aria-hidden="true"></span>
+          </button>
+        </div>
+
+        <div #profileMenuHost class="topbar-user" [class.open]="profileMenuOpen()">
+          <button
+            class="profile-trigger"
+            type="button"
+            aria-haspopup="menu"
+            [attr.aria-expanded]="profileMenuOpen()"
+            (click)="toggleProfileMenu()"
+          >
+            <div class="user-avatar">{{ userInitials() }}</div>
+            <div class="user-meta">
+              <p>{{ currentUser()?.prenom }} {{ currentUser()?.nom }}</p>
+              <span class="user-role">{{ roleLabel() }}</span>
             </div>
-          </div>
-        </div>
+            <span class="material-symbols-outlined chevron" aria-hidden="true">
+              {{ profileMenuOpen() ? 'expand_less' : 'expand_more' }}
+            </span>
+          </button>
 
-        <div class="topbar-center">
-          <p class="context-pill">Centre de coordination clinique</p>
-          <p class="context-meta">
-            <span>{{ displayDate() }}</span>
-            <i></i>
-            <span>{{ displayTime() }}</span>
-          </p>
-        </div>
+          @if (profileMenuOpen()) {
+            <div class="profile-menu panel" role="menu" aria-label="Menu utilisateur">
+              <div class="profile-menu-head">
+                <div class="user-avatar large">{{ userInitials() }}</div>
+                <div class="profile-menu-ident">
+                  <p>{{ currentUser()?.prenom }} {{ currentUser()?.nom }}</p>
+                  <span>{{ currentUser()?.email }}</span>
+                  <small>{{ roleLabel() }}</small>
+                </div>
+              </div>
 
-        <div class="topbar-user-card">
-          <div class="user-avatar">{{ userInitials() }}</div>
-          <div class="user-meta">
-            <p>{{ currentUser()?.prenom }} {{ currentUser()?.nom }}</p>
-            <span class="user-role">{{ roleLabel() }}</span>
-          </div>
-          <button class="btn btn-ghost topbar-logout" type="button" (click)="logout()">Deconnexion</button>
+              <button class="profile-menu-item" type="button" role="menuitem" (click)="goToProfile()">
+                <span class="material-symbols-outlined" aria-hidden="true">person</span>
+                Mon profil
+              </button>
+
+              <button class="profile-menu-item" type="button" role="menuitem" (click)="goToSettings()">
+                <span class="material-symbols-outlined" aria-hidden="true">settings</span>
+                Parametres
+              </button>
+
+              <button class="profile-menu-item danger" type="button" role="menuitem" (click)="logout()">
+                <span class="material-symbols-outlined" aria-hidden="true">logout</span>
+                Deconnexion
+              </button>
+            </div>
+          }
         </div>
       </header>
     </div>

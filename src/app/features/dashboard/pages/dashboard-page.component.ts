@@ -6,28 +6,67 @@ import { ConsultationsService } from '../../../core/services/consultations.servi
 import { MedecinsService } from '../../../core/services/medecins.service';
 import { PatientsService } from '../../../core/services/patients.service';
 import { RendezVousService } from '../../../core/services/rendez-vous.service';
-import { StatCardComponent } from '../../../shared/components/stat-card/stat-card.component';
 import type { Consultation } from '../../../core/models/consultation.model';
 import type { Medecin } from '../../../core/models/medecin.model';
 import type { Patient } from '../../../core/models/patient.model';
 import type { RendezVous } from '../../../core/models/rendez-vous.model';
 
+interface DashboardNotification {
+  id: string;
+  tone: 'warning' | 'info' | 'danger' | 'success';
+  title: string;
+  detail: string;
+  timeLabel: string;
+  actionLabel: string;
+  actionPath: string;
+}
+
+interface PlanningRow {
+  id: number;
+  heure: string;
+  patientNom: string;
+  patientInitials: string;
+  medecinNom: string;
+  typeConsultation: string;
+  salle: string;
+  statutLabel: string;
+  statutTone: 'planifie' | 'confirme' | 'encours' | 'annule';
+  dotTone: 'green' | 'blue' | 'orange' | 'red';
+}
+
+interface DashboardKpiCard {
+  tone: 'teal' | 'blue' | 'green' | 'amber';
+  icon: string;
+  trend: string;
+  value: number;
+  label: string;
+  spark: number[];
+}
+
 @Component({
   selector: 'app-dashboard-page',
   standalone: true,
-  imports: [CommonModule, RouterLink, StatCardComponent],
+  imports: [CommonModule, RouterLink],
   templateUrl: './dashboard-page.component.html',
   styleUrl: './dashboard-page.component.scss'
 })
 export class DashboardPageComponent {
   readonly loading = signal(false);
   readonly errorMessage = signal('');
+  readonly hideNotifications = signal(false);
 
   readonly medecins = signal<Medecin[]>([]);
   readonly patients = signal<Patient[]>([]);
   readonly rendezVous = signal<RendezVous[]>([]);
   readonly consultations = signal<Consultation[]>([]);
   readonly todayLabel = this.formatDateLong(new Date());
+  readonly displayDayLabel = new Intl.DateTimeFormat('fr-FR', {
+    weekday: 'long',
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric'
+  }).format(new Date());
+  readonly currentUserName = 'Amadou Diallo';
   readonly quickActions = [
     {
       label: 'Nouveau patient',
@@ -50,6 +89,41 @@ export class DashboardPageComponent {
       path: '/medecins'
     }
   ] as const;
+
+  readonly dashboardKpis = signal<DashboardKpiCard[]>([
+    {
+      tone: 'teal',
+      icon: 'P',
+      trend: '+47',
+      value: 1248,
+      label: 'Patients actifs',
+      spark: [30, 42, 36, 50, 47, 56, 55, 66, 63, 79]
+    },
+    {
+      tone: 'blue',
+      icon: 'R',
+      trend: '+6',
+      value: 34,
+      label: "Rendez-vous aujourd'hui",
+      spark: [45, 39, 50, 47, 58, 54, 60, 56, 68, 75]
+    },
+    {
+      tone: 'green',
+      icon: 'C',
+      trend: '+28',
+      value: 312,
+      label: 'Consultations ce mois',
+      spark: [36, 47, 41, 53, 50, 61, 57, 68, 64, 80]
+    },
+    {
+      tone: 'amber',
+      icon: 'M',
+      trend: '',
+      value: 18,
+      label: 'Medecins actifs',
+      spark: [48, 45, 52, 50, 58, 54, 59, 62, 66, 73]
+    }
+  ]);
 
   readonly totalPatients = computed(() => this.patients().length);
   readonly totalMedecins = computed(() => this.medecins().length);
@@ -201,6 +275,57 @@ export class DashboardPageComponent {
     return alertes.slice(0, 3);
   });
 
+  readonly notificationFeed = computed<DashboardNotification[]>(() => {
+    if (this.hideNotifications()) {
+      return [];
+    }
+
+    const prioritized: DashboardNotification[] = this.alertesPrioritaires().map((alerte, index) => {
+      const tone: DashboardNotification['tone'] =
+        alerte.niveau === 'critique' ? 'danger' : alerte.niveau === 'attention' ? 'warning' : 'success';
+
+      return {
+        id: `priorite-${index}`,
+        tone,
+        title: alerte.titre,
+        detail: alerte.detail,
+        timeLabel: index === 0 ? 'Il y a 10 min' : index === 1 ? 'Il y a 25 min' : 'Il y a 1 h',
+        actionLabel: alerte.niveau === 'critique' ? 'Intervenir' : 'Replanifier',
+        actionPath: '/rendez-vous'
+      };
+    });
+
+    const latestPatient = this.patients().at(-1);
+    const latestConsultation = this.consultations().at(-1);
+
+    const extras: DashboardNotification[] = [];
+    if (latestPatient) {
+      extras.push({
+        id: `patient-${latestPatient.id}`,
+        tone: 'info',
+        title: 'Nouveau patient',
+        detail: `${latestPatient.prenom} ${latestPatient.nom} vient d'etre enregistre dans le systeme.`,
+        timeLabel: 'Il y a 25 min',
+        actionLabel: 'Voir le dossier',
+        actionPath: '/patients'
+      });
+    }
+
+    if (latestConsultation) {
+      extras.push({
+        id: `consultation-${latestConsultation.id}`,
+        tone: 'success',
+        title: 'Consultation terminee',
+        detail: `${this.getMedecinNom(latestConsultation.medecin_id)} a cloture la consultation de ${this.getPatientNom(latestConsultation.patient_id)}.`,
+        timeLabel: 'Il y a 1 h',
+        actionLabel: 'Voir le rapport',
+        actionPath: '/consultations'
+      });
+    }
+
+    return [...prioritized, ...extras].slice(0, 4);
+  });
+
   readonly agendaAujourdhui = computed(() => {
     const today = new Date().toISOString().slice(0, 10);
     const patientsMap = new Map(this.patients().map((patient) => [patient.id, `${patient.prenom} ${patient.nom}`]));
@@ -248,6 +373,41 @@ export class DashboardPageComponent {
       }));
   });
 
+  readonly planningRows = computed<PlanningRow[]>(() => {
+    const baseRows = this.agendaAujourdhui().length > 0 ? this.agendaAujourdhui() : this.prochainRendezVous().slice(0, 7);
+
+    return baseRows.map((item, index) => {
+      const statutTone = this.mapStatusTone(item.statut);
+      return {
+        id: item.id,
+        heure: item.heure_rdv,
+        patientNom: item.patientNom,
+        patientInitials: this.extractInitials(item.patientNom),
+        medecinNom: item.medecinNom,
+        typeConsultation: this.formatConsultationType(item.motif),
+        salle: `Salle ${((item.medecin_id + index) % 4) + 1}`,
+        statutLabel: this.formatStatusLabel(item.statut),
+        statutTone,
+        dotTone:
+          statutTone === 'annule' ? 'red' : statutTone === 'confirme' ? 'green' : statutTone === 'encours' ? 'blue' : 'orange'
+      };
+    });
+  });
+
+  readonly planningStats = computed(() => {
+    const rows = this.planningRows();
+    return {
+      confirmes: rows.filter((row) => row.statutTone === 'confirme').length,
+      enCours: rows.filter((row) => row.statutTone === 'encours').length,
+      annules: rows.filter((row) => row.statutTone === 'annule').length
+    };
+  });
+
+  readonly satisfactionNote = computed(() => {
+    const base = 4.3 + Math.min(0.6, this.consultationsCount() / 100);
+    return `${base.toFixed(1)}/5`;
+  });
+
   constructor(
     private readonly patientsService: PatientsService,
     private readonly medecinsService: MedecinsService,
@@ -270,6 +430,7 @@ export class DashboardPageComponent {
       .pipe(finalize(() => this.loading.set(false)))
       .subscribe({
         next: ({ patients, medecins, rendezVous, consultations }) => {
+          this.hideNotifications.set(false);
           this.patients.set(patients);
           this.medecins.set(medecins);
           this.rendezVous.set(rendezVous);
@@ -281,6 +442,53 @@ export class DashboardPageComponent {
       });
   }
 
+  toggleNotifications(): void {
+    this.hideNotifications.update((value) => !value);
+  }
+
+  getNotificationToneLabel(tone: DashboardNotification['tone']): string {
+    if (tone === 'danger') {
+      return 'Urgent';
+    }
+    if (tone === 'warning') {
+      return 'Attention';
+    }
+    if (tone === 'info') {
+      return 'Information';
+    }
+    return 'Succes';
+  }
+
+  getQuickActionTone(path: string): 'tone-patient' | 'tone-rdv' | 'tone-consultation' | 'tone-medecin' {
+    if (path === '/rendez-vous') {
+      return 'tone-rdv';
+    }
+    if (path === '/consultations') {
+      return 'tone-consultation';
+    }
+    if (path === '/medecins') {
+      return 'tone-medecin';
+    }
+    return 'tone-patient';
+  }
+
+  getQuickActionGlyph(path: string): string {
+    if (path === '/rendez-vous') {
+      return 'RDV';
+    }
+    if (path === '/consultations') {
+      return 'CR';
+    }
+    if (path === '/medecins') {
+      return 'DR';
+    }
+    return 'PAT';
+  }
+
+  formatKpiNumber(value: number): string {
+    return new Intl.NumberFormat('fr-FR').format(value);
+  }
+
   private formatDateLong(date: Date): string {
     return new Intl.DateTimeFormat('fr-FR', {
       weekday: 'long',
@@ -288,5 +496,60 @@ export class DashboardPageComponent {
       month: 'long',
       year: 'numeric'
     }).format(date);
+  }
+
+  private extractInitials(fullName: string): string {
+    const chunks = fullName.split(' ').filter(Boolean);
+    return `${chunks[0]?.charAt(0) ?? ''}${chunks[1]?.charAt(0) ?? ''}`.toUpperCase();
+  }
+
+  private formatConsultationType(motif: string): string {
+    if (!motif) {
+      return 'Consultation generale';
+    }
+
+    return motif.charAt(0).toUpperCase() + motif.slice(1);
+  }
+
+  private mapStatusTone(status: RendezVous['statut']): 'planifie' | 'confirme' | 'encours' | 'annule' {
+    if (status === 'confirme') {
+      return 'confirme';
+    }
+
+    if (status === 'termine') {
+      return 'encours';
+    }
+
+    if (status === 'annule') {
+      return 'annule';
+    }
+
+    return 'planifie';
+  }
+
+  private formatStatusLabel(status: RendezVous['statut']): string {
+    if (status === 'confirme') {
+      return 'Confirme';
+    }
+
+    if (status === 'termine') {
+      return 'En cours';
+    }
+
+    if (status === 'annule') {
+      return 'Annule';
+    }
+
+    return 'Planifie';
+  }
+
+  private getPatientNom(patientId: number): string {
+    const patient = this.patients().find((entry) => entry.id === patientId);
+    return patient ? `${patient.prenom} ${patient.nom}` : 'Patient inconnu';
+  }
+
+  private getMedecinNom(medecinId: number): string {
+    const medecin = this.medecins().find((entry) => entry.id === medecinId);
+    return medecin ? `Dr ${medecin.prenom} ${medecin.nom}` : 'Medecin inconnu';
   }
 }

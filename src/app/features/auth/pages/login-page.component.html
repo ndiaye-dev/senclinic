@@ -1,4 +1,4 @@
-<section class="login-shell">
+﻿<section class="login-shell">
   <div class="login-card">
     <div class="login-brand">
       <div class="badge">SC</div>
@@ -11,8 +11,8 @@
     <h2>Connexion</h2>
     <p class="intro">Connectez-vous avec un compte de demonstration.</p>
 
-    @if (errorMessage) {
-      <div class="alert error">{{ errorMessage }}</div>
+    @if (errorMessage()) {
+      <div class="alert error">{{ errorMessage() }}</div>
     }
 
     <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
@@ -32,8 +32,8 @@
         }
       </div>
 
-      <button class="btn btn-primary full" type="submit" [disabled]="loadingState">
-        {{ loadingState ? 'Connexion...' : 'Se connecter' }}
+      <button class="btn btn-primary full" type="submit" [disabled]="loadingState()">
+        {{ loadingState() ? 'Connexion...' : 'Se connecter' }}
       </button>
     </form>
 
@@ -41,7 +41,7 @@
       <p>Comptes de demo :</p>
       @for (account of demoAccounts; track account.email) {
         <button class="btn btn-ghost demo-btn" type="button" (click)="useDemoAccount(account.email, account.mot_de_passe)">
-          {{ account.role }} � {{ account.email }} / {{ account.mot_de_passe }}
+          {{ account.role }} · {{ account.email }} / {{ account.mot_de_passe }}
         </button>
       }
     </div>

@@ -10,6 +10,10 @@ import { ConsultationsService } from '../../../core/services/consultations.servi
 import { MedecinsService } from '../../../core/services/medecins.service';
 import { PatientsService } from '../../../core/services/patients.service';
 
+type ConsultationStatus = 'terminee' | 'en_cours' | 'annulee';
+type ConsultationStatusFilter = 'tous' | ConsultationStatus;
+type OrdonnanceFilter = 'toutes' | 'avec' | 'sans';
+
 @Component({
   selector: 'app-consultations-page',
   standalone: true,
@@ -36,9 +40,11 @@ export class ConsultationsPageComponent {
   readonly selectedConsultationId = signal<number | null>(null);
 
   readonly searchTerm = signal('');
-  readonly certificatFilter = signal<'tous' | 'avec' | 'sans'>('tous');
+  readonly statutFilter = signal<ConsultationStatusFilter>('tous');
+  readonly medecinFilter = signal<string>('tous');
+  readonly ordonnanceFilter = signal<OrdonnanceFilter>('toutes');
   readonly currentPage = signal(1);
-  readonly pageSize = 5;
+  readonly pageSize = 8;
 
   readonly form = this.fb.group({
     patient_id: [1, [Validators.required, Validators.min(1)]],
@@ -54,39 +60,113 @@ export class ConsultationsPageComponent {
 
   readonly filteredConsultations = computed(() => {
     const term = this.searchTerm().toLowerCase().trim();
-    const certificat = this.certificatFilter();
+    const statusFilter = this.statutFilter();
+    const medecinFilter = this.medecinFilter();
+    const ordonnanceFilter = this.ordonnanceFilter();
 
     return this.consultations()
       .filter((consultation) => {
-      const patientNom = this.getPatientNom(consultation.patient_id).toLowerCase();
-      const medecinNom = this.getMedecinNom(consultation.medecin_id).toLowerCase();
-      const searchText = `${consultation.motif_consultation} ${consultation.diagnostic} ${consultation.ordonnance} ${patientNom} ${medecinNom}`.toLowerCase();
-      const matchSearch = !term || searchText.includes(term);
-      const matchCertificat =
-        certificat === 'tous' ||
-        (certificat === 'avec' && consultation.certificat) ||
-        (certificat === 'sans' && !consultation.certificat);
-      return matchSearch && matchCertificat;
+        const patientNom = this.getPatientNom(consultation.patient_id).toLowerCase();
+        const medecinNom = this.getMedecinNom(consultation.medecin_id).toLowerCase();
+        const searchText =
+          `${consultation.motif_consultation} ${consultation.diagnostic} ${consultation.ordonnance} ${patientNom} ${medecinNom}`.toLowerCase();
+        const matchSearch = !term || searchText.includes(term);
+        const status = this.getConsultationStatus(consultation);
+        const matchStatus = statusFilter === 'tous' || status === statusFilter;
+        const matchMedecin = medecinFilter === 'tous' || `${consultation.medecin_id}` === medecinFilter;
+        const matchOrdonnance =
+          ordonnanceFilter === 'toutes' ||
+          (ordonnanceFilter === 'avec' && this.hasOrdonnance(consultation)) ||
+          (ordonnanceFilter === 'sans' && !this.hasOrdonnance(consultation));
+
+        return matchSearch && matchStatus && matchMedecin && matchOrdonnance;
       })
       .sort((a, b) => `${b.date_consultation}-${b.id}`.localeCompare(`${a.date_consultation}-${a.id}`));
   });
-  readonly totalConsultations = computed(() => this.filteredConsultations().length);
+  readonly totalConsultations = computed(() => this.consultations().length);
   readonly consultationsAvecOrdonnance = computed(
-    () => this.filteredConsultations().filter((consultation) => consultation.ordonnance.trim().length > 0).length
+    () => this.consultations().filter((consultation) => this.hasOrdonnance(consultation)).length
   );
-  readonly certificatsDelivres = computed(
-    () => this.filteredConsultations().filter((consultation) => consultation.certificat).length
+  readonly consultationsEnCours = computed(
+    () => this.consultations().filter((consultation) => this.getConsultationStatus(consultation) === 'en_cours').length
   );
   readonly consultationsMoisCourant = computed(() => {
     const now = new Date();
     const month = now.getMonth();
     const year = now.getFullYear();
 
-    return this.filteredConsultations().filter((consultation) => {
+    return this.consultations().filter((consultation) => {
       const date = this.parseDate(consultation.date_consultation);
       return date.getMonth() === month && date.getFullYear() === year;
     }).length;
   });
+
+  readonly consultationsMoisPrecedent = computed(() => {
+    const now = new Date();
+    const currentMonthIndex = now.getFullYear() * 12 + now.getMonth();
+    const previousMonthIndex = currentMonthIndex - 1;
+
+    return this.consultations().filter((consultation) => {
+      const date = this.parseDate(consultation.date_consultation);
+      const consultationMonthIndex = date.getFullYear() * 12 + date.getMonth();
+      return consultationMonthIndex === previousMonthIndex;
+    }).length;
+  });
+
+  readonly monthlyTrendPercent = computed(() => {
+    const current = this.consultationsMoisCourant();
+    const previous = this.consultationsMoisPrecedent();
+    if (previous <= 0) {
+      return current > 0 ? 100 : 0;
+    }
+
+    return Math.round(((current - previous) / previous) * 100);
+  });
+
+  readonly monthlyTrendLabel = computed(() => {
+    const current = this.consultationsMoisCourant();
+    const previous = this.consultationsMoisPrecedent();
+    if (previous <= 0) {
+      return current > 0 ? 'Nouveau' : 'Stable';
+    }
+
+    const value = this.monthlyTrendPercent();
+    return `${value >= 0 ? '+' : ''}${value}%`;
+  });
+
+  readonly monthlyTrendClass = computed(() => {
+    const current = this.consultationsMoisCourant();
+    const previous = this.consultationsMoisPrecedent();
+    if (previous <= 0) {
+      return current > 0 ? 'positive' : 'neutral';
+    }
+
+    const value = this.monthlyTrendPercent();
+    if (value > 0) {
+      return 'positive';
+    }
+
+    if (value < 0) {
+      return 'negative';
+    }
+
+    return 'neutral';
+  });
+
+  readonly pageRangeStart = computed(() => {
+    const total = this.filteredConsultations().length;
+    if (total === 0) {
+      return 0;
+    }
+
+    return (this.currentPage() - 1) * this.pageSize + 1;
+  });
+
+  readonly pageRangeEnd = computed(() => {
+    const total = this.filteredConsultations().length;
+    return Math.min(this.currentPage() * this.pageSize, total);
+  });
+
   readonly selectedConsultation = computed(() => {
     const id = this.selectedConsultationId();
     if (id === null) {
@@ -148,7 +228,7 @@ export class ConsultationsPageComponent {
 
   getMedecinNom(id: number): string {
     const medecin = this.medecins().find((item) => item.id === id);
-    return medecin ? `Dr ${medecin.prenom} ${medecin.nom}` : 'Medecin inconnu';
+    return medecin ? `Dr ${medecin.prenom} ${medecin.nom}` : 'Médecin inconnu';
   }
 
   onSearchChange(value: string): void {
@@ -156,8 +236,18 @@ export class ConsultationsPageComponent {
     this.currentPage.set(1);
   }
 
-  onCertificatFilter(value: string): void {
-    this.certificatFilter.set(value as 'tous' | 'avec' | 'sans');
+  onStatutFilter(value: string): void {
+    this.statutFilter.set(value as ConsultationStatusFilter);
+    this.currentPage.set(1);
+  }
+
+  onMedecinFilter(value: string): void {
+    this.medecinFilter.set(value);
+    this.currentPage.set(1);
+  }
+
+  onOrdonnanceFilter(value: string): void {
+    this.ordonnanceFilter.set(value as OrdonnanceFilter);
     this.currentPage.set(1);
   }
 
@@ -265,6 +355,40 @@ export class ConsultationsPageComponent {
     this.currentPage.set(page);
   }
 
+  exportConsultations(): void {
+    const rows = this.filteredConsultations().map((consultation) => {
+      const date = `${this.getDateLabel(consultation.date_consultation)} ${this.getConsultationTime(consultation)}`;
+      return [
+        consultation.id,
+        this.getPatientNom(consultation.patient_id),
+        this.getMedecinNom(consultation.medecin_id),
+        date,
+        this.getConsultationType(consultation),
+        consultation.diagnostic,
+        this.getDureeLabel(consultation),
+        this.hasOrdonnance(consultation) ? 'Oui' : 'Non',
+        this.getConsultationStatusLabel(consultation)
+      ];
+    });
+
+    const csvLines = [
+      'ID,Patient,Médecin,DateHeure,Type,Diagnostic,Durée,Ordonnance,Statut',
+      ...rows.map((row) =>
+        row
+          .map((cell) => `"${String(cell).replace(/"/g, '""')}"`)
+          .join(',')
+      )
+    ];
+
+    const blob = new Blob([`\uFEFF${csvLines.join('\n')}`], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `consultations-${new Date().toISOString().slice(0, 10)}.csv`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }
+
   exportOrdonnance(consultation: Consultation): void {
     this.errorMessage.set('');
 
@@ -363,6 +487,106 @@ export class ConsultationsPageComponent {
   private parseDate(value: string): Date {
     const [year, month, day] = value.split('-').map((item) => Number(item));
     return new Date(year, (month || 1) - 1, day || 1);
+  }
+
+  getPatientCode(id: number): string {
+    const patient = this.getPatient(id);
+    return patient?.numero_dossier ?? 'P-000';
+  }
+
+  getPatientInitials(id: number): string {
+    const patient = this.getPatient(id);
+    if (!patient) {
+      return 'PT';
+    }
+
+    return `${patient.prenom.charAt(0)}${patient.nom.charAt(0)}`.toUpperCase();
+  }
+
+  getMedecinSpecialite(id: number): string {
+    return this.getMedecin(id)?.specialite ?? 'Spécialité non définie';
+  }
+
+  getDateLabel(date: string): string {
+    return new Intl.DateTimeFormat('fr-FR', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric'
+    }).format(this.parseDate(date));
+  }
+
+  getConsultationTime(consultation: Consultation): string {
+    const slots = ['09:30', '10:00', '08:30', '11:00', '09:00', '10:45', '11:30', '14:10'];
+    return slots[(consultation.id - 1) % slots.length];
+  }
+
+  getConsultationType(consultation: Consultation): string {
+    const text = consultation.motif_consultation.toLowerCase();
+    if (text.includes('suivi')) {
+      return 'Suivi spécialisé';
+    }
+    if (text.includes('bilan')) {
+      return 'Bilan de sante';
+    }
+    if (text.includes('enfant') || text.includes('pedi')) {
+      return 'Consultation pédiatrique';
+    }
+
+    return 'Consultation generale';
+  }
+
+  getConsultationTypeClass(consultation: Consultation): string {
+    const type = this.getConsultationType(consultation);
+    if (type.includes('pédiatrique')) {
+      return 'pediatrique';
+    }
+    if (type.includes('suivi')) {
+      return 'suivi';
+    }
+    if (type.includes('bilan')) {
+      return 'bilan';
+    }
+
+    return 'general';
+  }
+
+  getDiagnosticHint(consultation: Consultation): string {
+    const hints = ['145/92 mmHg', '128/82 mmHg', '120/78 mmHg', '118/76 mmHg', '132/84 mmHg'];
+    return hints[(consultation.id - 1) % hints.length];
+  }
+
+  getDureeLabel(consultation: Consultation): string {
+    const durations = [55, 42, 28, 40, 35, 58, 25, 50];
+    return `${durations[(consultation.id - 1) % durations.length]} min`;
+  }
+
+  hasOrdonnance(consultation: Consultation): boolean {
+    return consultation.ordonnance.trim().length > 0;
+  }
+
+  getOrdonnanceLabel(consultation: Consultation): string {
+    return this.hasOrdonnance(consultation) ? 'Oui' : '-';
+  }
+
+  getConsultationStatus(consultation: Consultation): ConsultationStatus {
+    const cycle: ConsultationStatus[] = ['terminee', 'en_cours', 'terminee', 'annulee', 'en_cours', 'terminee'];
+    return cycle[(consultation.id - 1) % cycle.length];
+  }
+
+  getConsultationStatusLabel(consultation: Consultation): string {
+    const status = this.getConsultationStatus(consultation);
+    if (status === 'en_cours') {
+      return 'En cours';
+    }
+    if (status === 'annulee') {
+      return 'Annulee';
+    }
+
+    return 'Terminée';
+  }
+
+  getConsultationStatusClass(consultation: Consultation): string {
+    return this.getConsultationStatus(consultation);
   }
 
   private ensurePdfSpace(doc: jsPDF, y: number, neededHeight = 8): number {

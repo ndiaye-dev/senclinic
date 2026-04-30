@@ -1,0 +1,86 @@
+<section class="profil-shell">
+  @if (loading()) {
+    <div class="loading-line"></div>
+  }
+
+  @if (errorMessage()) {
+    <div class="alert error">{{ errorMessage() }}</div>
+  }
+
+  @if (successMessage()) {
+    <div class="alert success">{{ successMessage() }}</div>
+  }
+
+  <section class="identity-card">
+    <div class="avatar">{{ userInitials() }}</div>
+    <div>
+      <h2>{{ currentUser()?.prenom }} {{ currentUser()?.nom }}</h2>
+      <p>{{ currentUser()?.email }}</p>
+      <small>{{ roleLabel() }}</small>
+    </div>
+  </section>
+
+  <section class="tabs">
+    <button type="button" [class.active]="activeTab() === 'profil'" (click)="setTab('profil')">Profil</button>
+    <button type="button" [class.active]="activeTab() === 'parametres'" (click)="setTab('parametres')">Paramètres</button>
+  </section>
+
+  @if (activeTab() === 'profil') {
+    <section class="card form-card">
+      <h3>Informations personnelles</h3>
+      <form [formGroup]="form" (ngSubmit)="submitProfile()" novalidate>
+        <div class="grid">
+          <div class="field">
+            <label for="nom">Nom *</label>
+            <input id="nom" formControlName="nom" [class.invalid]="isInvalid('nom')" />
+            @if (isInvalid('nom')) {
+              <p class="error-text">{{ getFieldError('nom') }}</p>
+            }
+          </div>
+          <div class="field">
+            <label for="prenom">Prénom *</label>
+            <input id="prenom" formControlName="prenom" [class.invalid]="isInvalid('prenom')" />
+            @if (isInvalid('prenom')) {
+              <p class="error-text">{{ getFieldError('prenom') }}</p>
+            }
+          </div>
+          <div class="field">
+            <label for="email">Email *</label>
+            <input id="email" formControlName="email" type="email" [class.invalid]="isInvalid('email')" />
+            @if (isInvalid('email')) {
+              <p class="error-text">{{ getFieldError('email') }}</p>
+            }
+          </div>
+          <div class="field">
+            <label for="telephone">Téléphone *</label>
+            <input id="telephone" formControlName="telephone" [class.invalid]="isInvalid('telephone')" />
+            @if (isInvalid('telephone')) {
+              <p class="error-text">{{ getFieldError('telephone') }}</p>
+            }
+          </div>
+        </div>
+
+        <div class="actions">
+          <button class="btn btn-primary" type="submit" [disabled]="saving()">
+            {{ saving() ? 'Sauvegarde...' : 'Enregistrer le profil' }}
+          </button>
+        </div>
+      </form>
+    </section>
+  } @else {
+    <section class="card form-card">
+      <h3>Paramètres de sécurité</h3>
+      <p class="muted">Ces options sont simulées en mode frontend mock.</p>
+
+      <div class="switch-row">
+        <span>Authentification renforcée</span>
+        <button type="button" class="btn btn-ghost" (click)="saveSecuritySettings()">Activer</button>
+      </div>
+      <div class="switch-row">
+        <span>Notifications de connexion</span>
+        <button type="button" class="btn btn-ghost" (click)="saveSecuritySettings()">Enregistrer</button>
+      </div>
+    </section>
+  }
+</section>
+

@@ -1,219 +1,308 @@
-<section>
-  <div class="page-header">
-    <div>
-      <h2>Consultations</h2>
-      <p>Historique clinique, ordonnances et suivi patient.</p>
-    </div>
-    <button class="btn btn-primary" type="button" (click)="openCreateForm()">Nouvelle consultation</button>
-  </div>
+<section class="consult-shell">
+  @if (loading()) {
+    <div class="loading-line"></div>
+  }
 
-  <section class="consult-stats">
-    <article class="consult-stat-card tone-teal">
-      <p>Total consultations</p>
+  @if (errorMessage()) {
+    <div class="alert error">{{ errorMessage() }}</div>
+  }
+
+  <section class="consult-metrics">
+    <article class="consult-metric card tone-teal">
+      <div class="metric-head">
+        <span class="metric-icon">C</span>
+      </div>
       <strong>{{ totalConsultations() }}</strong>
-      <span>Selon les filtres actifs</span>
+      <p>Total consultations</p>
+      <small>Toutes les consultations</small>
     </article>
-    <article class="consult-stat-card tone-blue">
-      <p>Avec ordonnance</p>
-      <strong>{{ consultationsAvecOrdonnance() }}</strong>
-      <span>Prescriptions disponibles</span>
-    </article>
-    <article class="consult-stat-card tone-mint">
-      <p>Certificats delivres</p>
-      <strong>{{ certificatsDelivres() }}</strong>
-      <span>Documents medicaux emis</span>
-    </article>
-    <article class="consult-stat-card tone-indigo">
-      <p>Ce mois</p>
+
+    <article class="consult-metric card tone-green">
+      <div class="metric-head">
+        <span class="metric-icon">M</span>
+        <span class="metric-trend" [class]="monthlyTrendClass()">{{ monthlyTrendLabel() }}</span>
+      </div>
       <strong>{{ consultationsMoisCourant() }}</strong>
-      <span>Activite clinique mensuelle</span>
+      <p>Ce mois-ci</p>
+      <small>Activité du mois</small>
+    </article>
+
+    <article class="consult-metric card tone-orange">
+      <div class="metric-head">
+        <span class="metric-icon">EC</span>
+      </div>
+      <strong>{{ consultationsEnCours() }}</strong>
+      <p>En cours</p>
+      <small>Suivis cliniques actifs</small>
+    </article>
+
+    <article class="consult-metric card tone-blue">
+      <div class="metric-head">
+        <span class="metric-icon">O</span>
+      </div>
+      <strong>{{ consultationsAvecOrdonnance() }}</strong>
+      <p>Avec ordonnance</p>
+      <small>Prescriptions disponibles</small>
     </article>
   </section>
 
-  <div *ngIf="loading()" class="loading-line"></div>
-  <div *ngIf="errorMessage()" class="alert error">{{ errorMessage() }}</div>
+  <section class="card consult-board">
+    <div class="consult-toolbar">
+      <label class="search-input">
+        <span class="search-glyph" aria-hidden="true"></span>
+        <input
+          type="search"
+          placeholder="Rechercher par patient, médecin, type..."
+          [value]="searchTerm()"
+          (input)="onSearchChange($any($event.target).value)"
+        />
+      </label>
 
-  <section *ngIf="showForm()" class="card form-card">
-    <h3>{{ editingId() ? 'Modifier la consultation' : 'Ajouter une consultation' }}</h3>
-    <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
-      <div class="form-grid">
-        <div class="field">
-          <label for="patient_id" class="required-label">Patient</label>
-          <select id="patient_id" formControlName="patient_id">
-            <option *ngFor="let patient of patients()" [ngValue]="patient.id">{{ patient.prenom }} {{ patient.nom }}</option>
-          </select>
-        </div>
-
-        <div class="field">
-          <label for="medecin_id" class="required-label">Medecin</label>
-          <select id="medecin_id" formControlName="medecin_id">
-            <option *ngFor="let medecin of medecins()" [ngValue]="medecin.id">
-              Dr {{ medecin.prenom }} {{ medecin.nom }}
-            </option>
-          </select>
-        </div>
-
-        <div class="field">
-          <label for="date_consultation" class="required-label">Date consultation</label>
-          <input id="date_consultation" type="date" formControlName="date_consultation" />
-        </div>
-
-        <div class="field full-width">
-          <label for="motif_consultation" class="required-label">Motif consultation</label>
-          <textarea id="motif_consultation" formControlName="motif_consultation"></textarea>
-        </div>
-
-        <div class="field full-width">
-          <label for="symptomes" class="required-label">Symptomes</label>
-          <textarea id="symptomes" formControlName="symptomes"></textarea>
-        </div>
-
-        <div class="field full-width">
-          <label for="diagnostic" class="required-label">Diagnostic</label>
-          <textarea id="diagnostic" formControlName="diagnostic"></textarea>
-        </div>
-
-        <div class="field full-width">
-          <label for="observations" class="required-label">Observations</label>
-          <textarea id="observations" formControlName="observations"></textarea>
-        </div>
-
-        <div class="field full-width">
-          <label for="ordonnance" class="required-label">Ordonnance</label>
-          <textarea id="ordonnance" formControlName="ordonnance"></textarea>
-        </div>
-
-        <div class="checkbox-row">
-          <input id="certificat" type="checkbox" formControlName="certificat" />
-          <label for="certificat">Certificat medical delivre</label>
-        </div>
-      </div>
-
-      <div class="actions-row">
-        <button class="btn btn-secondary" type="submit" [disabled]="saving()">
-          {{ saving() ? 'Sauvegarde...' : 'Enregistrer' }}
-        </button>
-        <button class="btn btn-ghost" type="button" (click)="cancelForm()">Annuler</button>
-      </div>
-    </form>
-  </section>
-
-  <section *ngIf="selectedConsultation() as current" class="card details-card">
-    <div class="details-head">
-      <div>
-        <h3>Dossier consultation #{{ current.id }}</h3>
-        <p>{{ current.date_consultation }} - {{ getPatientNom(current.patient_id) }}</p>
-      </div>
-      <div class="details-actions">
-        <button class="btn btn-secondary" type="button" (click)="exportOrdonnance(current)">Exporter ordonnance</button>
-        <button class="btn btn-ghost" type="button" (click)="closeDetails()">Fermer</button>
-      </div>
-    </div>
-
-    <div class="details-grid">
-      <article>
-        <h4>Patient</h4>
-        <p>{{ getPatientNom(current.patient_id) }}</p>
-      </article>
-      <article>
-        <h4>Medecin</h4>
-        <p>{{ getMedecinNom(current.medecin_id) }}</p>
-      </article>
-      <article>
-        <h4>Motif</h4>
-        <p>{{ current.motif_consultation }}</p>
-      </article>
-      <article>
-        <h4>Diagnostic</h4>
-        <p>{{ current.diagnostic }}</p>
-      </article>
-      <article>
-        <h4>Symptomes</h4>
-        <p>{{ current.symptomes }}</p>
-      </article>
-      <article>
-        <h4>Certificat</h4>
-        <p>{{ current.certificat ? 'Oui' : 'Non' }}</p>
-      </article>
-    </div>
-
-    <article class="ordonnance-block">
-      <h4>Ordonnance</h4>
-      <p>{{ current.ordonnance }}</p>
-    </article>
-
-    <article class="ordonnance-block soft">
-      <h4>Observations</h4>
-      <p>{{ current.observations }}</p>
-    </article>
-  </section>
-
-  <section class="card list-card">
-    <div class="toolbar">
-      <input
-        class="search"
-        type="search"
-        placeholder="Rechercher par motif, diagnostic, ordonnance, patient ou medecin"
-        (input)="onSearchChange($any($event.target).value)"
-      />
-      <select (change)="onCertificatFilter($any($event.target).value)">
-        <option value="tous">Tous certificats</option>
-        <option value="avec">Avec certificat</option>
-        <option value="sans">Sans certificat</option>
+      <select [value]="statutFilter()" (change)="onStatutFilter($any($event.target).value)">
+        <option value="tous">Tous les statuts</option>
+        <option value="terminee">Terminee</option>
+        <option value="en_cours">En cours</option>
+        <option value="annulee">Annulee</option>
       </select>
-      <button class="btn btn-ghost" type="button" (click)="loadData()">Recharger</button>
+
+      <select [value]="medecinFilter()" (change)="onMedecinFilter($any($event.target).value)">
+        <option value="tous">Tous les médecins</option>
+        @for (medecin of medecins(); track medecin.id) {
+          <option [value]="medecin.id">Dr {{ medecin.prenom }} {{ medecin.nom }}</option>
+        }
+      </select>
+
+      <select [value]="ordonnanceFilter()" (change)="onOrdonnanceFilter($any($event.target).value)">
+        <option value="toutes">Ordonnance (toutes)</option>
+        <option value="avec">Avec ordonnance</option>
+        <option value="sans">Sans ordonnance</option>
+      </select>
+
+      <button class="btn btn-ghost toolbar-action" type="button" (click)="exportConsultations()">Exporter</button>
+      <button class="btn btn-primary toolbar-action" type="button" (click)="openCreateForm()">Nouvelle consultation</button>
     </div>
 
-    <div class="table-wrapper">
-      <table>
+    @if (showForm()) {
+      <section class="card form-card">
+        <h3>{{ editingId() ? 'Modifier la consultation' : 'Ajouter une consultation' }}</h3>
+        <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+          <div class="form-grid">
+            <div class="field">
+              <label for="patient_id" class="required-label">Patient</label>
+              <select id="patient_id" formControlName="patient_id">
+                @for (patient of patients(); track patient.id) {
+                  <option [ngValue]="patient.id">{{ patient.prenom }} {{ patient.nom }}</option>
+                }
+              </select>
+            </div>
+
+            <div class="field">
+              <label for="medecin_id" class="required-label">Medecin</label>
+              <select id="medecin_id" formControlName="medecin_id">
+                @for (medecin of medecins(); track medecin.id) {
+                  <option [ngValue]="medecin.id">Dr {{ medecin.prenom }} {{ medecin.nom }}</option>
+                }
+              </select>
+            </div>
+
+            <div class="field">
+              <label for="date_consultation" class="required-label">Date consultation</label>
+              <input id="date_consultation" type="date" formControlName="date_consultation" />
+            </div>
+
+            <div class="field full-width">
+              <label for="motif_consultation" class="required-label">Motif consultation</label>
+              <textarea id="motif_consultation" formControlName="motif_consultation"></textarea>
+            </div>
+
+            <div class="field full-width">
+              <label for="symptomes" class="required-label">Symptomes</label>
+              <textarea id="symptomes" formControlName="symptomes"></textarea>
+            </div>
+
+            <div class="field full-width">
+              <label for="diagnostic" class="required-label">Diagnostic</label>
+              <textarea id="diagnostic" formControlName="diagnostic"></textarea>
+            </div>
+
+            <div class="field full-width">
+              <label for="observations" class="required-label">Observations</label>
+              <textarea id="observations" formControlName="observations"></textarea>
+            </div>
+
+            <div class="field full-width">
+              <label for="ordonnance" class="required-label">Ordonnance</label>
+              <textarea id="ordonnance" formControlName="ordonnance"></textarea>
+            </div>
+
+            <div class="checkbox-row">
+              <input id="certificat" type="checkbox" formControlName="certificat" />
+              <label for="certificat">Certificat médical délivré</label>
+            </div>
+          </div>
+
+          <div class="actions-row">
+            <button class="btn btn-secondary" type="submit" [disabled]="saving()">
+              {{ saving() ? 'Sauvegarde...' : 'Enregistrer' }}
+            </button>
+            <button class="btn btn-ghost" type="button" (click)="cancelForm()">Annuler</button>
+          </div>
+        </form>
+      </section>
+    }
+
+    @if (selectedConsultation(); as current) {
+      <section class="card details-card">
+        <div class="details-head">
+          <div>
+            <h3>Dossier consultation #{{ current.id }}</h3>
+            <p>{{ getDateLabel(current.date_consultation) }} - {{ getPatientNom(current.patient_id) }}</p>
+          </div>
+          <div class="details-actions">
+            <button class="btn btn-secondary" type="button" (click)="exportOrdonnance(current)">Exporter ordonnance</button>
+            <button class="btn btn-ghost" type="button" (click)="closeDetails()">Fermer</button>
+          </div>
+        </div>
+
+        <div class="details-grid">
+          <article>
+            <h4>Patient</h4>
+            <p>{{ getPatientNom(current.patient_id) }}</p>
+          </article>
+          <article>
+            <h4>Medecin</h4>
+            <p>{{ getMedecinNom(current.medecin_id) }}</p>
+          </article>
+          <article>
+            <h4>Motif</h4>
+            <p>{{ current.motif_consultation }}</p>
+          </article>
+          <article>
+            <h4>Diagnostic</h4>
+            <p>{{ current.diagnostic }}</p>
+          </article>
+          <article>
+            <h4>Symptomes</h4>
+            <p>{{ current.symptomes }}</p>
+          </article>
+          <article>
+            <h4>Certificat</h4>
+            <p>{{ current.certificat ? 'Oui' : 'Non' }}</p>
+          </article>
+        </div>
+
+        <article class="ordonnance-block">
+          <h4>Ordonnance</h4>
+          <p>{{ current.ordonnance }}</p>
+        </article>
+
+        <article class="ordonnance-block soft">
+          <h4>Observations</h4>
+          <p>{{ current.observations }}</p>
+        </article>
+      </section>
+    }
+
+    <div class="table-wrapper consult-table-wrapper">
+      <table class="consult-table">
         <thead>
           <tr>
-            <th>Date</th>
             <th>Patient</th>
             <th>Medecin</th>
-            <th>Motif</th>
-            <th>Diagnostic</th>
-            <th>Certificat</th>
+            <th>Date & heure</th>
+            <th>Type</th>
+            <th>Duree</th>
+            <th>Ordonnance</th>
+            <th>Statut</th>
             <th>Actions</th>
           </tr>
         </thead>
         <tbody>
-          <tr *ngIf="paginatedConsultations().length === 0">
-            <td colspan="7">Aucune consultation trouvee.</td>
-          </tr>
-          <tr *ngFor="let consultation of paginatedConsultations()">
-            <td>{{ consultation.date_consultation }}</td>
-            <td>{{ getPatientNom(consultation.patient_id) }}</td>
-            <td>{{ getMedecinNom(consultation.medecin_id) }}</td>
-            <td>{{ consultation.motif_consultation }}</td>
-            <td>{{ consultation.diagnostic }}</td>
-            <td>{{ consultation.certificat ? 'Oui' : 'Non' }}</td>
-            <td>
-              <div class="actions action-stack">
-                <button class="btn btn-ghost" type="button" (click)="openDetails(consultation)">Details</button>
-                <button class="btn btn-secondary" type="button" (click)="exportOrdonnance(consultation)">Ordonnance</button>
-                <button class="btn btn-ghost" type="button" (click)="openEditForm(consultation)">Modifier</button>
-                <button class="btn btn-danger" type="button" (click)="deleteConsultation(consultation.id)">Supprimer</button>
-              </div>
-            </td>
-          </tr>
+          @if (paginatedConsultations().length === 0) {
+            <tr>
+              <td colspan="8" class="empty-cell">Aucune consultation trouvée.</td>
+            </tr>
+          } @else {
+            @for (consultation of paginatedConsultations(); track consultation.id) {
+              <tr>
+                <td>
+                  <div class="patient-cell">
+                    <span class="patient-avatar" [style.--avatar-hue]="((consultation.patient_id * 41) % 360) + 'deg'">
+                      {{ getPatientInitials(consultation.patient_id) }}
+                    </span>
+                    <div class="meta-stack">
+                      <strong>{{ getPatientNom(consultation.patient_id) }}</strong>
+                      <small>{{ getPatientCode(consultation.patient_id) }}</small>
+                    </div>
+                  </div>
+                </td>
+
+                <td>
+                  <div class="meta-stack">
+                    <strong>{{ getMedecinNom(consultation.medecin_id) }}</strong>
+                    <small>{{ getMedecinSpecialite(consultation.medecin_id) }}</small>
+                  </div>
+                </td>
+
+                <td>
+                  <div class="meta-stack">
+                    <strong>{{ getDateLabel(consultation.date_consultation) }}</strong>
+                    <small>{{ getConsultationTime(consultation) }}</small>
+                  </div>
+                </td>
+
+                <td>
+                  <span class="type-chip" [class]="'type-chip ' + getConsultationTypeClass(consultation)">
+                    {{ getConsultationType(consultation) }}
+                  </span>
+                </td>
+
+                <td>
+                  <strong class="duration-label">{{ getDureeLabel(consultation) }}</strong>
+                </td>
+
+                <td>
+                  <span class="ordonnance-pill" [class.without]="!hasOrdonnance(consultation)">
+                    {{ getOrdonnanceLabel(consultation) }}
+                  </span>
+                </td>
+
+                <td>
+                  <span class="status-pill" [class]="'status-pill ' + getConsultationStatusClass(consultation)">
+                    {{ getConsultationStatusLabel(consultation) }}
+                  </span>
+                </td>
+
+                <td>
+                  <div class="actions">
+                    <button class="icon-action" type="button" title="Voir details" (click)="openDetails(consultation)">
+                      <span class="material-symbols-outlined" aria-hidden="true">visibility</span>
+                    </button>
+                    <button class="icon-action" type="button" title="Modifier" (click)="openEditForm(consultation)">
+                      <span class="material-symbols-outlined" aria-hidden="true">edit</span>
+                    </button>
+                    <button class="icon-action danger" type="button" title="Supprimer" (click)="deleteConsultation(consultation.id)">
+                      <span class="material-symbols-outlined" aria-hidden="true">delete</span>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            }
+          }
         </tbody>
       </table>
     </div>
 
-    <div class="pagination">
-      <p>Page {{ currentPage() }} / {{ totalPages() }} ({{ filteredConsultations().length }} resultats)</p>
+    <div class="consult-pagination">
+      <p>{{ pageRangeStart() }}-{{ pageRangeEnd() }} sur {{ filteredConsultations().length }} résultats</p>
       <div class="pagination-controls">
-        <button type="button" (click)="goToPage(currentPage() - 1)">Precedent</button>
-        <button
-          *ngFor="let page of pageNumbers()"
-          type="button"
-          [class.active]="page === currentPage()"
-          (click)="goToPage(page)"
-        >
-          {{ page }}
+        <button type="button" class="icon" [disabled]="currentPage() === 1" (click)="goToPage(currentPage() - 1)">&lsaquo;</button>
+        @for (page of pageNumbers(); track page) {
+          <button type="button" [class.active]="page === currentPage()" (click)="goToPage(page)">{{ page }}</button>
+        }
+        <button type="button" class="icon" [disabled]="currentPage() === totalPages()" (click)="goToPage(currentPage() + 1)">
+          &rsaquo;
         </button>
-        <button type="button" (click)="goToPage(currentPage() + 1)">Suivant</button>
       </div>
     </div>
   </section>

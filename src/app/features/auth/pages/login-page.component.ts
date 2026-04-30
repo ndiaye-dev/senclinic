@@ -1,8 +1,8 @@
 import { CommonModule } from '@angular/common';
-import { Component, inject } from '@angular/core';
+import { Component, inject, signal } from '@angular/core';
 import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
-import { finalize } from 'rxjs';
+import { finalize, timeout } from 'rxjs';
 import { AuthService } from '../../../core/services/auth.service';
 
 @Component({
@@ -17,8 +17,8 @@ export class LoginPageComponent {
   private readonly authService = inject(AuthService);
   private readonly router = inject(Router);
 
-  loadingState = false;
-  errorMessage = '';
+  readonly loadingState = signal(false);
+  readonly errorMessage = signal('');
 
   readonly form = this.fb.group({
     email: ['', [Validators.required, Validators.email]],
@@ -39,7 +39,7 @@ export class LoginPageComponent {
 
   useDemoAccount(email: string, motDePasse: string): void {
     this.form.patchValue({ email, mot_de_passe: motDePasse });
-    this.errorMessage = '';
+    this.errorMessage.set('');
   }
 
   submit(): void {
@@ -48,20 +48,41 @@ export class LoginPageComponent {
       return;
     }
 
-    this.loadingState = true;
-    this.errorMessage = '';
+    this.loadingState.set(true);
+    this.errorMessage.set('');
+    const watchdogId = window.setTimeout(() => {
+      if (this.loadingState()) {
+        this.loadingState.set(false);
+        this.errorMessage.set('Connexion impossible. Vérifiez vos identifiants et réessayez.');
+      }
+    }, 6000);
 
     const formValue = this.form.getRawValue();
+    let loginRequest$!: ReturnType<AuthService['login']>;
 
-    this.authService
-      .login(formValue.email, formValue.mot_de_passe)
-      .pipe(finalize(() => (this.loadingState = false)))
+    try {
+      loginRequest$ = this.authService.login(formValue.email, formValue.mot_de_passe);
+    } catch (error) {
+      window.clearTimeout(watchdogId);
+      this.loadingState.set(false);
+      this.errorMessage.set(error instanceof Error ? error.message : 'Connexion impossible. Réessayez.');
+      return;
+    }
+
+    loginRequest$
+      .pipe(
+        timeout(5000),
+        finalize(() => {
+          window.clearTimeout(watchdogId);
+          this.loadingState.set(false);
+        })
+      )
       .subscribe({
         next: () => {
           void this.router.navigate(['/tableau-de-bord']);
         },
-        error: (error: Error) => {
-          this.errorMessage = error.message;
+        error: (error: unknown) => {
+          this.errorMessage.set(error instanceof Error ? error.message : 'Connexion impossible. Réessayez.');
         }
       });
   }

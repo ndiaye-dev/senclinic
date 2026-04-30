@@ -44,8 +44,11 @@ export class RendezVousPageComponent {
 
   readonly searchTerm = signal('');
   readonly statutFilter = signal<'tous' | RendezVous['statut']>('tous');
+  readonly medecinFilter = signal<number | 'tous'>('tous');
+  readonly dateFilter = signal('');
+  readonly scopeFilter = signal<'tous' | 'aujourdhui' | 'semaine'>('tous');
   readonly currentPage = signal(1);
-  readonly pageSize = 6;
+  readonly pageSize = signal(8);
   readonly weekDays = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'] as const;
   readonly currentMonth = signal(this.toMonthStart(new Date()));
   readonly selectedDateIso = signal(this.formatDateIso(new Date()));
@@ -59,30 +62,71 @@ export class RendezVousPageComponent {
     statut: ['planifie' as RendezVous['statut'], Validators.required]
   });
 
-  readonly filteredRendezVous = computed(() => {
+  readonly scopedRendezVous = computed(() => {
+    const scope = this.scopeFilter();
+    const now = new Date();
+    const todayIso = this.formatDateIso(now);
+
+    if (scope === 'aujourdhui') {
+      return this.rendezVous().filter((item) => item.date_rdv === todayIso);
+    }
+
+    if (scope === 'semaine') {
+      const weekStart = this.getWeekStart(now);
+      const weekEnd = new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate() + 6);
+      const startIso = this.formatDateIso(weekStart);
+      const endIso = this.formatDateIso(weekEnd);
+
+      return this.rendezVous().filter((item) => item.date_rdv >= startIso && item.date_rdv <= endIso);
+    }
+
+    return this.rendezVous();
+  });
+
+  readonly calendarFilteredRendezVous = computed(() => {
     const term = this.searchTerm().toLowerCase().trim();
     const statut = this.statutFilter();
+    const medecinFilter = this.medecinFilter();
 
-    return this.rendezVous().filter((item) => {
+    return this.scopedRendezVous().filter((item) => {
       const patientNom = this.getPatientNom(item.patient_id).toLowerCase();
       const medecinNom = this.getMedecinNom(item.medecin_id).toLowerCase();
       const searchText = `${item.motif} ${patientNom} ${medecinNom} ${item.date_rdv}`.toLowerCase();
       const matchesSearch = !term || searchText.includes(term);
       const matchesStatut = statut === 'tous' || item.statut === statut;
-      return matchesSearch && matchesStatut;
+      const matchesMedecin = medecinFilter === 'tous' || item.medecin_id === medecinFilter;
+      return matchesSearch && matchesStatut && matchesMedecin;
     });
   });
 
-  readonly totalPages = computed(() => Math.max(1, Math.ceil(this.filteredRendezVous().length / this.pageSize)));
+  readonly filteredRendezVous = computed(() => {
+    const dateFilter = this.dateFilter();
+    return this.calendarFilteredRendezVous().filter((item) => !dateFilter || item.date_rdv === dateFilter);
+  });
+
+  readonly totalPages = computed(() => Math.max(1, Math.ceil(this.filteredRendezVous().length / this.pageSize())));
 
   readonly pageNumbers = computed(() =>
     Array.from({ length: this.totalPages() }, (_, index) => index + 1)
   );
 
   readonly paginatedRendezVous = computed(() => {
-    const start = (this.currentPage() - 1) * this.pageSize;
-    return this.filteredRendezVous().slice(start, start + this.pageSize);
+    const start = (this.currentPage() - 1) * this.pageSize();
+    return this.filteredRendezVous().slice(start, start + this.pageSize());
   });
+
+  readonly pageRangeStart = computed(() => {
+    if (this.filteredRendezVous().length === 0) {
+      return 0;
+    }
+
+    return (this.currentPage() - 1) * this.pageSize() + 1;
+  });
+
+  readonly pageRangeEnd = computed(() =>
+    Math.min(this.currentPage() * this.pageSize(), this.filteredRendezVous().length)
+  );
+
   readonly totalRendezVous = computed(() => this.filteredRendezVous().length);
   readonly rendezVousAujourdhui = computed(() => {
     const today = this.formatDateIso(new Date());
@@ -103,7 +147,7 @@ export class RendezVousPageComponent {
   readonly rendezVousByDate = computed(() => {
     const map = new Map<string, RendezVous[]>();
 
-    for (const item of this.filteredRendezVous()) {
+    for (const item of this.calendarFilteredRendezVous()) {
       const row = map.get(item.date_rdv) ?? [];
       row.push(item);
       map.set(item.date_rdv, row);
@@ -153,6 +197,19 @@ export class RendezVousPageComponent {
       year: 'numeric'
     }).format(this.parseDateIso(this.selectedDateIso()))
   );
+  readonly countTous = computed(() => this.rendezVous().length);
+  readonly countAujourdhui = computed(() => {
+    const todayIso = this.formatDateIso(new Date());
+    return this.rendezVous().filter((item) => item.date_rdv === todayIso).length;
+  });
+  readonly countSemaine = computed(() => {
+    const now = new Date();
+    const weekStart = this.getWeekStart(now);
+    const weekEnd = new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate() + 6);
+    const startIso = this.formatDateIso(weekStart);
+    const endIso = this.formatDateIso(weekEnd);
+    return this.rendezVous().filter((item) => item.date_rdv >= startIso && item.date_rdv <= endIso).length;
+  });
 
   constructor() {
     effect(() => {
@@ -208,12 +265,64 @@ export class RendezVousPageComponent {
     this.currentPage.set(1);
   }
 
-  openCreateForm(): void {
+  onMedecinFilterChange(value: string): void {
+    if (value === 'tous') {
+      this.medecinFilter.set('tous');
+      this.currentPage.set(1);
+      return;
+    }
+
+    const parsed = Number(value);
+    this.medecinFilter.set(Number.isFinite(parsed) ? parsed : 'tous');
+    this.currentPage.set(1);
+  }
+
+  onDateFilterChange(value: string): void {
+    this.dateFilter.set(value);
+    if (value) {
+      this.selectedDateIso.set(value);
+      const selectedDate = this.parseDateIso(value);
+      this.currentMonth.set(this.toMonthStart(selectedDate));
+    }
+    this.currentPage.set(1);
+  }
+
+  setScopeFilter(scope: 'tous' | 'aujourdhui' | 'semaine'): void {
+    this.scopeFilter.set(scope);
+    this.currentPage.set(1);
+  }
+
+  exportRendezVous(): void {
+    const headers = ['date', 'heure', 'patient', 'medecin', 'motif', 'type', 'salle', 'duree', 'statut'];
+    const lines = this.filteredRendezVous().map((item) => [
+      item.date_rdv,
+      item.heure_rdv,
+      this.getPatientNom(item.patient_id),
+      this.getMedecinNom(item.medecin_id),
+      item.motif,
+      this.getConsultationType(item),
+      this.getSalle(item),
+      this.getDuree(item),
+      this.getStatusLabel(item.statut)
+    ]);
+    const csvRows = [headers, ...lines].map((row) => row.map((value) => `"${String(value).replaceAll('"', '""')}"`).join(';'));
+    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    const today = new Date().toISOString().slice(0, 10);
+
+    link.href = url;
+    link.download = `rendez-vous-${today}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
+  openCreateForm(dateIso = ''): void {
     this.editingId.set(null);
     this.form.reset({
       patient_id: this.patients()[0]?.id ?? 1,
       medecin_id: this.medecins()[0]?.id ?? 1,
-      date_rdv: '',
+      date_rdv: dateIso,
       heure_rdv: '',
       motif: '',
       statut: 'planifie'
@@ -312,10 +421,32 @@ export class RendezVousPageComponent {
 
   selectDate(iso: string): void {
     this.selectedDateIso.set(iso);
+    const selected = this.parseDateIso(iso);
+    this.currentMonth.set(this.toMonthStart(selected));
+  }
+
+  applySelectedDateToList(): void {
+    this.dateFilter.set(this.selectedDateIso());
+    this.currentPage.set(1);
+    this.viewMode.set('liste');
+  }
+
+  clearDateFilter(): void {
+    this.dateFilter.set('');
+    this.currentPage.set(1);
+  }
+
+  openCreateFromSelectedDate(): void {
+    this.openCreateForm(this.selectedDateIso());
   }
 
   private toMonthStart(date: Date): Date {
     return new Date(date.getFullYear(), date.getMonth(), 1);
+  }
+
+  private getWeekStart(date: Date): Date {
+    const weekdayIndex = (date.getDay() + 6) % 7;
+    return new Date(date.getFullYear(), date.getMonth(), date.getDate() - weekdayIndex);
   }
 
   private formatDateIso(date: Date): string {
@@ -328,5 +459,125 @@ export class RendezVousPageComponent {
   private parseDateIso(iso: string): Date {
     const [year, month, day] = iso.split('-').map((part) => Number(part));
     return new Date(year, (month || 1) - 1, day || 1);
+  }
+
+  getPatientInitials(id: number): string {
+    const patient = this.patients().find((item) => item.id === id);
+    if (!patient) {
+      return 'PT';
+    }
+
+    return `${patient.prenom.charAt(0)}${patient.nom.charAt(0)}`.toUpperCase();
+  }
+
+  getPatientCode(id: number): string {
+    return `P-${String(id).padStart(3, '0')}`;
+  }
+
+  getMedecinSpecialite(id: number): string {
+    const medecin = this.medecins().find((item) => item.id === id);
+    return medecin?.specialite ?? 'Medecine generale';
+  }
+
+  getDateLabel(iso: string): string {
+    return new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(iso));
+  }
+
+  getConsultationType(item: RendezVous): string {
+    const motif = item.motif.toLowerCase();
+
+    if (motif.includes('cardiaque') || motif.includes('tension')) {
+      return 'Suivi cardiologique';
+    }
+
+    if (motif.includes('pedi') || motif.includes('enfant')) {
+      return 'Consultation pediatrique';
+    }
+
+    if (motif.includes('bilan')) {
+      return 'Bilan de sante';
+    }
+
+    if (motif.includes('insuffisance') || motif.includes('geri')) {
+      return 'Consultation geriatrique';
+    }
+
+    if (motif.includes('migraine')) {
+      return 'Suivi post-operatoire';
+    }
+
+    return 'Consultation generale';
+  }
+
+  getConsultationTone(item: RendezVous): 'teal' | 'red' | 'green' | 'blue' | 'amber' | 'violet' {
+    const type = this.getConsultationType(item);
+    if (type === 'Suivi cardiologique') {
+      return 'red';
+    }
+    if (type === 'Bilan de sante') {
+      return 'green';
+    }
+    if (type === 'Consultation pediatrique') {
+      return 'blue';
+    }
+    if (type === 'Consultation geriatrique') {
+      return 'violet';
+    }
+    if (type === 'Suivi post-operatoire') {
+      return 'amber';
+    }
+    return 'teal';
+  }
+
+  getTypeDescription(item: RendezVous): string {
+    const type = this.getConsultationType(item);
+    if (type === 'Suivi cardiologique') {
+      return 'Suivi hypertension';
+    }
+    if (type === 'Bilan de sante') {
+      return 'Bilan annuel complet';
+    }
+    if (type === 'Consultation pediatrique') {
+      return 'Fievre persistante';
+    }
+    if (type === 'Consultation geriatrique') {
+      return 'Suivi polymedication';
+    }
+    if (type === 'Suivi post-operatoire') {
+      return 'Controle cicatrisation';
+    }
+    return 'Douleurs abdominales';
+  }
+
+  getSalle(item: RendezVous): string {
+    return `Salle ${((item.medecin_id - 1) % 4) + 1}`;
+  }
+
+  getDuree(item: RendezVous): string {
+    const durations = ['30 min', '45 min', '60 min', '30 min', '30 min', '45 min', '45 min', '30 min'];
+    return durations[(item.id - 1 + durations.length) % durations.length];
+  }
+
+  getStatusLabel(status: RendezVous['statut']): string {
+    if (status === 'confirme') {
+      return 'Confirme';
+    }
+    if (status === 'termine') {
+      return 'En cours';
+    }
+    if (status === 'annule') {
+      return 'Annule';
+    }
+    return 'Planifie';
+  }
+
+  getScopeCount(scope: 'tous' | 'aujourdhui' | 'semaine'): number {
+    if (scope === 'aujourdhui') {
+      return this.countAujourdhui();
+    }
+    if (scope === 'semaine') {
+      return this.countSemaine();
+    }
+    return this.countTous();
   }
 }

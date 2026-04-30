@@ -1,5 +1,5 @@
 import { computed, Injectable, signal } from '@angular/core';
-import { map, Observable } from 'rxjs';
+import { Observable, of, switchMap, throwError } from 'rxjs';
 import type { SessionUser, UserRole } from '../models/auth.model';
 import { UtilisateursService } from './utilisateurs.service';
 
@@ -15,9 +15,9 @@ export class AuthService {
 
   login(email: string, motDePasse: string): Observable<SessionUser> {
     return this.utilisateursService.findByCredentials(email, motDePasse).pipe(
-      map((user) => {
+      switchMap((user) => {
         if (!user || user.statut !== 'actif') {
-          throw new Error('Identifiants invalides ou compte inactif.');
+          return throwError(() => new Error('Identifiants invalides ou compte inactif.'));
         }
 
         const sessionUser: SessionUser = {
@@ -30,7 +30,7 @@ export class AuthService {
 
         this.currentUserSignal.set(sessionUser);
         localStorage.setItem(this.storageKey, JSON.stringify(sessionUser));
-        return sessionUser;
+        return of(sessionUser);
       })
     );
   }
@@ -43,6 +43,21 @@ export class AuthService {
   hasRole(allowedRoles: UserRole[]): boolean {
     const user = this.currentUserSignal();
     return !!user && allowedRoles.includes(user.role);
+  }
+
+  updateSessionUser(patch: Partial<SessionUser>): void {
+    const user = this.currentUserSignal();
+    if (!user) {
+      return;
+    }
+
+    const updatedUser: SessionUser = {
+      ...user,
+      ...patch
+    };
+
+    this.currentUserSignal.set(updatedUser);
+    localStorage.setItem(this.storageKey, JSON.stringify(updatedUser));
   }
 
   private readSession(): SessionUser | null {

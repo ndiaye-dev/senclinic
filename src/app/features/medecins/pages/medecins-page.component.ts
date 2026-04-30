@@ -5,6 +5,10 @@ import { finalize } from 'rxjs';
 import type { Medecin } from '../../../core/models/medecin.model';
 import { MedecinsService } from '../../../core/services/medecins.service';
 
+type StatusFilter = 'tous' | Medecin['statut'];
+type CardTone = 'violet' | 'teal' | 'azure' | 'amber' | 'red';
+type ViewMode = 'cards' | 'list';
+
 @Component({
   selector: 'app-medecins-page',
   standalone: true,
@@ -25,9 +29,11 @@ export class MedecinsPageComponent {
   readonly editingId = signal<number | null>(null);
 
   readonly searchTerm = signal('');
-  readonly statutFilter = signal<'tous' | Medecin['statut']>('tous');
+  readonly statutFilter = signal<StatusFilter>('tous');
+  readonly specialiteFilter = signal('toutes');
   readonly currentPage = signal(1);
-  readonly pageSize = 6;
+  readonly pageSize = 8;
+  readonly viewMode = signal<ViewMode>('cards');
 
   readonly form = this.fb.group({
     numero_ordre: ['', [Validators.required, Validators.minLength(5)]],
@@ -39,17 +45,33 @@ export class MedecinsPageComponent {
     statut: ['actif' as Medecin['statut'], Validators.required]
   });
 
+  readonly availableSpecialites = computed(() =>
+    [...new Set(this.medecins().map((medecin) => medecin.specialite))]
+      .sort((a, b) => a.localeCompare(b))
+  );
+
   readonly filteredMedecins = computed(() => {
     const term = this.searchTerm().toLowerCase().trim();
     const statut = this.statutFilter();
+    const specialite = this.specialiteFilter();
 
-    return this.medecins().filter((medecin) => {
-      const searchableText = `${medecin.nom} ${medecin.prenom} ${medecin.specialite} ${medecin.numero_ordre}`.toLowerCase();
-      const matchesSearch = !term || searchableText.includes(term);
-      const matchesStatut = statut === 'tous' || medecin.statut === statut;
-      return matchesSearch && matchesStatut;
-    });
+    return this.medecins()
+      .filter((medecin) => {
+        const searchableText =
+          `${medecin.nom} ${medecin.prenom} ${medecin.specialite} ${medecin.numero_ordre} ${medecin.email} ${medecin.telephone}`.toLowerCase();
+        const matchesSearch = !term || searchableText.includes(term);
+        const matchesStatut = statut === 'tous' || medecin.statut === statut;
+        const matchesSpecialite = specialite === 'toutes' || medecin.specialite === specialite;
+
+        return matchesSearch && matchesStatut && matchesSpecialite;
+      })
+      .sort((a, b) => `${a.nom} ${a.prenom}`.localeCompare(`${b.nom} ${b.prenom}`));
   });
+
+  readonly totalMedecins = computed(() => this.medecins().length);
+  readonly totalActifs = computed(() => this.medecins().filter((medecin) => medecin.statut === 'actif').length);
+  readonly totalConges = computed(() => this.medecins().filter((medecin) => medecin.statut === 'conge').length);
+  readonly totalInactifs = computed(() => this.medecins().filter((medecin) => medecin.statut === 'inactif').length);
 
   readonly totalPages = computed(() => Math.max(1, Math.ceil(this.filteredMedecins().length / this.pageSize)));
 
@@ -60,6 +82,20 @@ export class MedecinsPageComponent {
   readonly paginatedMedecins = computed(() => {
     const start = (this.currentPage() - 1) * this.pageSize;
     return this.filteredMedecins().slice(start, start + this.pageSize);
+  });
+
+  readonly pageRangeStart = computed(() => {
+    const total = this.filteredMedecins().length;
+    if (total === 0) {
+      return 0;
+    }
+
+    return (this.currentPage() - 1) * this.pageSize + 1;
+  });
+
+  readonly pageRangeEnd = computed(() => {
+    const total = this.filteredMedecins().length;
+    return Math.min(this.currentPage() * this.pageSize, total);
   });
 
   constructor() {
@@ -82,7 +118,7 @@ export class MedecinsPageComponent {
       .pipe(finalize(() => this.loading.set(false)))
       .subscribe({
         next: (medecins) => this.medecins.set(medecins),
-        error: (error: Error) => this.errorMessage.set(error.message || 'Impossible de charger les medecins.')
+        error: (error: Error) => this.errorMessage.set(error.message || 'Impossible de charger les médecins.')
       });
   }
 
@@ -91,8 +127,13 @@ export class MedecinsPageComponent {
     this.currentPage.set(1);
   }
 
-  onFilterChange(value: string): void {
-    this.statutFilter.set(value as 'tous' | Medecin['statut']);
+  onStatutFilterChange(value: string): void {
+    this.statutFilter.set(value as StatusFilter);
+    this.currentPage.set(1);
+  }
+
+  onSpecialiteFilterChange(value: string): void {
+    this.specialiteFilter.set(value);
     this.currentPage.set(1);
   }
 
@@ -149,9 +190,7 @@ export class MedecinsPageComponent {
 
     const payload = this.form.getRawValue();
     const id = this.editingId();
-    const request$ = id
-      ? this.medecinsService.update(id, payload)
-      : this.medecinsService.create(payload);
+    const request$ = id ? this.medecinsService.update(id, payload) : this.medecinsService.create(payload);
 
     request$.pipe(finalize(() => this.saving.set(false))).subscribe({
       next: () => {
@@ -159,13 +198,13 @@ export class MedecinsPageComponent {
         this.loadMedecins();
       },
       error: (error: Error) => {
-        this.errorMessage.set(error.message || 'Echec lors de la sauvegarde du medecin.');
+        this.errorMessage.set(error.message || 'Échec lors de la sauvegarde du médecin.');
       }
     });
   }
 
   deleteMedecin(id: number): void {
-    const confirmed = confirm('Voulez-vous supprimer ce medecin ?');
+    const confirmed = confirm('Voulez-vous supprimer ce médecin ?');
     if (!confirmed) {
       return;
     }
@@ -188,5 +227,111 @@ export class MedecinsPageComponent {
     }
 
     this.currentPage.set(page);
+  }
+
+  setViewMode(mode: ViewMode): void {
+    this.viewMode.set(mode);
+  }
+
+  exportMedecins(): void {
+    const rows = this.filteredMedecins().map((medecin) => [
+      medecin.numero_ordre,
+      `Dr ${medecin.prenom} ${medecin.nom}`,
+      medecin.specialite,
+      medecin.telephone,
+      medecin.email,
+      this.getStatusLabel(medecin)
+    ]);
+
+    const lines = [
+      'Matricule,Médecin,Spécialité,Téléphone,Email,Statut',
+      ...rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+    ];
+
+    const blob = new Blob([`\uFEFF${lines.join('\n')}`], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `medecins-${new Date().toISOString().slice(0, 10)}.csv`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }
+
+  getInitials(medecin: Medecin): string {
+    return `${medecin.prenom.charAt(0)}${medecin.nom.charAt(0)}`.toUpperCase();
+  }
+
+  getStatusLabel(medecin: Medecin): string {
+    if (medecin.statut === 'actif') {
+      return 'Actif';
+    }
+    if (medecin.statut === 'conge') {
+      return 'En congé';
+    }
+
+    return 'Inactif';
+  }
+
+  getStatusClass(medecin: Medecin): string {
+    return medecin.statut;
+  }
+
+  getCardTone(medecin: Medecin): CardTone {
+    const tones: CardTone[] = ['violet', 'teal', 'azure', 'amber', 'red'];
+    return tones[(medecin.id - 1) % tones.length];
+  }
+
+  getMonthlyConsultations(medecin: Medecin): number {
+    const base = 18 + ((medecin.id * 17) % 95);
+    if (medecin.statut === 'conge') {
+      return Math.max(0, Math.round(base * 0.45));
+    }
+    if (medecin.statut === 'inactif') {
+      return 0;
+    }
+
+    return base;
+  }
+
+  getPatientsSuivis(medecin: Medecin): number {
+    const base = 70 + ((medecin.id * 39) % 250);
+    if (medecin.statut === 'conge') {
+      return Math.round(base * 0.56);
+    }
+    if (medecin.statut === 'inactif') {
+      return 0;
+    }
+
+    return base;
+  }
+
+  getExperienceAnnees(medecin: Medecin): number {
+    const digits = medecin.numero_ordre.replace(/\D/g, '');
+    const last = Number(digits.slice(-2)) || medecin.id * 3;
+    return 5 + (last % 12);
+  }
+
+  getDisponibiliteJours(medecin: Medecin): Array<{ label: string; active: boolean }> {
+    const labels = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
+    const offset = medecin.id % labels.length;
+    const activeLimit = medecin.statut === 'actif' ? 5 : medecin.statut === 'conge' ? 2 : 0;
+    const activeIndexes = new Set<number>();
+
+    for (let i = 0; i < activeLimit; i += 1) {
+      activeIndexes.add((offset + i) % labels.length);
+    }
+
+    return labels.map((label, index) => ({
+      label,
+      active: activeIndexes.has(index)
+    }));
+  }
+
+  getSalleLabel(medecin: Medecin): string {
+    if (medecin.statut === 'inactif') {
+      return '-';
+    }
+
+    return `Salle ${((medecin.id * 2) % 7) + 1}`;
   }
 }

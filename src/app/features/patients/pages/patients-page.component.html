@@ -1,12 +1,4 @@
-<section>
-  <div class="page-header">
-    <div>
-      <h2>Patients</h2>
-      <p>Dossiers patients, informations administratives et medicales.</p>
-    </div>
-    <button class="btn btn-primary" type="button" (click)="openCreateForm()">Nouveau patient</button>
-  </div>
-
+﻿<section class="patients-shell">
   @if (loading()) {
     <div class="loading-line"></div>
   }
@@ -15,12 +7,53 @@
     <div class="alert error">{{ errorMessage() }}</div>
   }
 
+  <section class="metrics-grid">
+    <article class="metric-card card teal">
+      <div class="metric-head">
+        <span class="metric-icon">P</span>
+      </div>
+      <strong>{{ formatNumber(totalPatientsKpi()) }}</strong>
+      <p>Total patients</p>
+      <small>Dossiers enregistrés</small>
+    </article>
+
+    <article class="metric-card card green">
+      <div class="metric-head">
+        <span class="metric-icon">A</span>
+        <span class="metric-trend">{{ tauxPatientsActifsKpi() }}</span>
+      </div>
+      <strong>{{ formatNumber(totalPatientsActifsKpi()) }}</strong>
+      <p>Patients actifs</p>
+      <small>Suivi médical en cours</small>
+    </article>
+
+    <article class="metric-card card slate">
+      <div class="metric-head">
+        <span class="metric-icon">I</span>
+      </div>
+      <strong>{{ formatNumber(totalPatientsInactifsKpi()) }}</strong>
+      <p>Patients inactifs</p>
+      <small>Inactifs et hospitalisés</small>
+    </article>
+
+    <article class="metric-card card blue">
+      <div class="metric-head">
+        <span class="metric-icon">N</span>
+        <span class="metric-trend">{{ tendanceNouveauxCeMoisKpi() }}</span>
+      </div>
+      <strong>+{{ formatNumber(nouveauxCeMoisKpi()) }}</strong>
+      <p>Nouveaux ce mois</p>
+      <small>Admissions récentes</small>
+    </article>
+  </section>
+
   @if (showForm()) {
     <section class="card form-card">
       <h3>{{ editingId() ? 'Modifier un patient' : 'Ajouter un patient' }}</h3>
       @if (submitAttempted() && form.invalid) {
         <div class="alert error">Veuillez corriger les champs obligatoires marques par *.</div>
       }
+
       <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
         <div class="form-grid">
           <div class="field">
@@ -49,12 +82,7 @@
 
           <div class="field">
             <label for="date_naissance" class="required-label">Date naissance</label>
-            <input
-              id="date_naissance"
-              type="date"
-              formControlName="date_naissance"
-              [class.invalid]="isInvalid('date_naissance')"
-            />
+            <input id="date_naissance" type="date" formControlName="date_naissance" [class.invalid]="isInvalid('date_naissance')" />
             @if (isInvalid('date_naissance')) {
               <p class="error">{{ getFieldError('date_naissance') }}</p>
             }
@@ -179,11 +207,7 @@
 
           <div class="field full-width">
             <label for="traitements_cours">Traitements en cours</label>
-            <textarea
-              id="traitements_cours"
-              formControlName="traitements_cours"
-              [class.invalid]="isInvalid('traitements_cours')"
-            ></textarea>
+            <textarea id="traitements_cours" formControlName="traitements_cours" [class.invalid]="isInvalid('traitements_cours')"></textarea>
             @if (isInvalid('traitements_cours')) {
               <p class="error">{{ getFieldError('traitements_cours') }}</p>
             }
@@ -200,38 +224,52 @@
     </section>
   }
 
-  <section class="card">
-    <div class="toolbar patients-toolbar">
-      <input
-        class="search"
-        type="search"
-        placeholder="Rechercher dossier, nom, prenom ou telephone"
-        (input)="onSearchChange($any($event.target).value)"
-      />
-      <select (change)="onSexeFilter($any($event.target).value)">
-        <option value="tous">Tous sexes</option>
-        <option value="Homme">Homme</option>
-        <option value="Femme">Femme</option>
-        <option value="Autre">Autre</option>
-      </select>
-      <select (change)="onStatutFilter($any($event.target).value)">
-        <option value="tous">Tous statuts</option>
+  <section class="patients-panel card">
+    <div class="patients-toolbar">
+      <label class="search-input">
+        <span class="search-glyph" aria-hidden="true"></span>
+        <input
+          type="search"
+          placeholder="Rechercher par nom, ID, téléphone..."
+          [value]="searchTerm()"
+          (input)="onSearchChange($any($event.target).value)"
+        />
+      </label>
+
+      <select [value]="statutFilter()" (change)="onStatutFilter($any($event.target).value)">
+        <option value="tous">Tous les statuts</option>
         <option value="actif">Actif</option>
         <option value="hospitalise">Hospitalise</option>
         <option value="inactif">Inactif</option>
       </select>
-      <button class="btn btn-ghost" type="button" (click)="loadData()">Recharger</button>
+
+      <select [value]="villeFilter()" (change)="onVilleFilter($any($event.target).value)">
+        <option value="toutes">Toutes les villes</option>
+        @for (ville of availableCities(); track ville) {
+          <option [value]="ville">{{ ville }}</option>
+        }
+      </select>
+
+      <button class="btn btn-ghost toolbar-action" type="button" (click)="exportPatients()">Exporter</button>
+      <button class="btn btn-primary toolbar-action" type="button" (click)="openCreateForm()">Nouveau patient</button>
     </div>
 
-    <div class="table-wrapper">
-      <table>
+    <div class="table-wrapper patients-table-wrapper">
+      <table class="patients-table">
         <thead>
           <tr>
-            <th>Dossier</th>
-            <th>Nom complet</th>
-            <th>Date naissance</th>
-            <th>Telephone</th>
-            <th>Medecin traitant</th>
+            <th class="check-col">
+              <input
+                type="checkbox"
+                [checked]="allCurrentPageSelected()"
+                (change)="toggleSelectAllCurrentPage($any($event.target).checked)"
+              />
+            </th>
+            <th>Patient</th>
+            <th>Âge & naissance</th>
+            <th>Contact</th>
+            <th>Médecin référent</th>
+            <th>Dernier RDV</th>
             <th>Statut</th>
             <th>Actions</th>
           </tr>
@@ -239,23 +277,66 @@
         <tbody>
           @if (paginatedPatients().length === 0) {
             <tr>
-              <td colspan="7">Aucun patient correspondant.</td>
+              <td colspan="8" class="empty-cell">Aucun patient correspondant aux filtres.</td>
             </tr>
           } @else {
             @for (patient of paginatedPatients(); track patient.id) {
               <tr>
-                <td>{{ patient.numero_dossier }}</td>
-                <td>{{ patient.prenom }} {{ patient.nom }}</td>
-                <td>{{ patient.date_naissance }}</td>
-                <td>{{ patient.telephone }}</td>
-                <td>{{ getMedecinNom(patient.medecin_traitant) }}</td>
-                <td>
-                  <span class="status-pill" [class]="'status-pill ' + patient.statut">{{ patient.statut }}</span>
+                <td class="check-col">
+                  <input
+                    type="checkbox"
+                    [checked]="isPatientSelected(patient.id)"
+                    (change)="togglePatientSelection(patient.id, $any($event.target).checked)"
+                  />
                 </td>
                 <td>
-                  <div class="actions">
-                    <button class="btn btn-ghost" type="button" (click)="openEditForm(patient)">Modifier</button>
-                    <button class="btn btn-danger" type="button" (click)="deletePatient(patient.id)">Supprimer</button>
+                  <div class="patient-cell">
+                    <span class="patient-avatar" [style.--avatar-hue]="((patient.id * 37) % 360) + 'deg'">
+                      {{ getPatientInitials(patient) }}
+                    </span>
+                    <div class="meta-stack">
+                      <strong>{{ patient.prenom }} {{ patient.nom }}</strong>
+                      <small>{{ patient.numero_dossier }}</small>
+                    </div>
+                  </div>
+                </td>
+                <td>
+                  <div class="meta-stack">
+                    <strong>{{ getAge(patient.date_naissance) }} ans</strong>
+                    <small>{{ formatBirthDate(patient.date_naissance) }}</small>
+                  </div>
+                </td>
+                <td>
+                  <div class="meta-stack">
+                    <strong>{{ patient.telephone }}</strong>
+                    <small>{{ patient.email }}</small>
+                  </div>
+                </td>
+                <td>
+                  <div class="medecin-cell">
+                    <span class="medecin-avatar">{{ getMedecinInitials(patient.medecin_traitant) }}</span>
+                    <div class="meta-stack">
+                      <strong>{{ getMedecinNom(patient.medecin_traitant) }}</strong>
+                      <small>{{ getMedecinVille(patient.medecin_traitant) }}</small>
+                    </div>
+                  </div>
+                </td>
+                <td>
+                  <div class="meta-stack compact">
+                    <strong>{{ getLastRdvLabel(patient.id) }}</strong>
+                  </div>
+                </td>
+                <td>
+                  <span class="patient-status" [class]="'patient-status ' + patient.statut">{{ getStatutLabel(patient.statut) }}</span>
+                </td>
+                <td>
+                  <div class="actions compact">
+                    <button class="icon-action" type="button" title="Modifier" (click)="openEditForm(patient)">
+                      <span class="material-symbols-outlined" aria-hidden="true">edit</span>
+                    </button>
+                    <button class="icon-action danger" type="button" title="Supprimer" (click)="deletePatient(patient.id)">
+                      <span class="material-symbols-outlined" aria-hidden="true">delete</span>
+                    </button>
                   </div>
                 </td>
               </tr>
@@ -265,15 +346,18 @@
       </table>
     </div>
 
-    <div class="pagination">
-      <p>Page {{ currentPage() }} / {{ totalPages() }} ({{ filteredPatients().length }} resultats)</p>
+    <div class="patients-pagination">
+      <p>
+        {{ pageRangeStart() }}-{{ pageRangeEnd() }} sur {{ filteredPatients().length }} resultats
+      </p>
       <div class="pagination-controls">
-        <button type="button" (click)="goToPage(currentPage() - 1)">Precedent</button>
+          <button type="button" class="icon" [disabled]="currentPage() === 1" (click)="goToPage(currentPage() - 1)">&lsaquo;</button>
         @for (page of pageNumbers(); track page) {
           <button type="button" [class.active]="page === currentPage()" (click)="goToPage(page)">{{ page }}</button>
         }
-        <button type="button" (click)="goToPage(currentPage() + 1)">Suivant</button>
+          <button type="button" class="icon" [disabled]="currentPage() === totalPages()" (click)="goToPage(currentPage() + 1)">&rsaquo;</button>
       </div>
     </div>
   </section>
 </section>
+

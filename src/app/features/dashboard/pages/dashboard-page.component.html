@@ -1,61 +1,4 @@
-﻿<section class="dashboard-shell">
-  <section class="hero-card">
-    <div class="hero-content">
-      <p class="hero-eyebrow">Centre de pilotage SenClinic</p>
-      <h2>Tableau de bord clinique</h2>
-      <p class="hero-description">
-        Vue centralisee des activites medicales, de la capacite des equipes et du flux patient.
-      </p>
-
-      <div class="hero-tags">
-        <span>{{ todayLabel }}</span>
-        <span>{{ totalPatients() }} patients suivis</span>
-        <span>{{ medecinsActifs() }} medecins actifs</span>
-      </div>
-
-      <div class="hero-status-row">
-        <div class="hero-status-indicator">
-          <span></span>
-          Coordination active
-        </div>
-        <p>Flux patient surveille, capacite medicale consolidee et agenda synchronise.</p>
-      </div>
-    </div>
-
-    <div class="hero-side card-glass">
-      <div class="hero-side-head">
-        <div>
-          <p class="mini-title">Rythme de la semaine</p>
-          <p class="mini-value">{{ rdvSemaine() }} rendez-vous</p>
-        </div>
-        <span>{{ tauxRdvConfirmes() }}%</span>
-      </div>
-      <p class="mini-text">Planifies sur 7 jours glissants</p>
-
-      <div class="mini-progress-track">
-        <div class="mini-progress-fill" [style.width.%]="tauxRdvConfirmes()"></div>
-      </div>
-      <p class="mini-foot">{{ tauxRdvConfirmes() }}% de rendez-vous confirmes ou termines</p>
-
-      <div class="hero-side-metrics">
-        <div class="hero-side-metric">
-          <span>Aujourd'hui</span>
-          <strong>{{ rdvAujourdhui() }}</strong>
-        </div>
-        <div class="hero-side-metric">
-          <span>Medecins actifs</span>
-          <strong>{{ medecinsActifs() }}</strong>
-        </div>
-        <div class="hero-side-metric">
-          <span>Consultations</span>
-          <strong>{{ consultationsCount() }}</strong>
-        </div>
-      </div>
-
-      <button class="btn btn-secondary" type="button" (click)="loadDashboard()">Actualiser les donnees</button>
-    </div>
-  </section>
-
+<section class="dashboard-shell">
   @if (loading()) {
     <div class="loading-line"></div>
   }
@@ -64,134 +7,221 @@
     <div class="alert error">{{ errorMessage() }}</div>
   }
 
-  <section class="grid-cards dashboard-kpis">
-    <app-stat-card
-      title="Patients suivis"
-      [value]="totalPatients().toString()"
-      description="Actifs et hospitalises"
-      chip="Population"
-      [trend]="patientsHospitalises() + ' hospitalises actuellement'"
-      [progress]="occupationMedicale()"
-      tone="teal"
-    />
+  <section class="hero-card">
+    <div class="hero-left">
+      <div class="hero-pills">
+        <span class="pill date">{{ todayLabel }}</span>
+        <span class="pill status"><i></i> Clinique ouverte</span>
+      </div>
 
-    <app-stat-card
-      title="Rendez-vous du jour"
-      [value]="rdvAujourdhui().toString()"
-      description="Agenda de la journee"
-      chip="Operations"
-      [trend]="tauxRdvConfirmes() + '% de confirmations globales'"
-      [progress]="tauxRdvConfirmes()"
-      tone="gray"
-    />
+      <h2>Bonjour, Dr. {{ currentUserName }}</h2>
+      <p class="hero-description">
+        Vous avez <strong>{{ rdvSemaine() }} rendez-vous</strong> cette semaine et
+        <strong>{{ notificationFeed().length }} alertes</strong> en attente.
+      </p>
 
-    <app-stat-card
-      title="Consultations"
-      [value]="consultationsCount().toString()"
-      description="Historique clinique"
-      chip="Suivi"
-      [trend]="certificatsDelivres() + ' certificats delivres'"
-      [progress]="(certificatsDelivres() / (consultationsCount() || 1)) * 100"
-      tone="teal"
-    />
+      <div class="hero-meta">
+        <span>Prochain RDV: <strong>{{ planningRows().at(0)?.heure ?? '08:30' }}</strong></span>
+        <span>RDV annules: <strong>{{ planningStats().annules }}</strong></span>
+        <span>Occupation: <strong>{{ occupationMedicale() }}%</strong></span>
+      </div>
+    </div>
+
+    <div class="hero-right">
+      <article class="hero-mini-card">
+        <p>Prochain RDV</p>
+        <strong>{{ planningRows().at(0)?.heure ?? '08:30' }}</strong>
+        <span>{{ planningRows().at(0)?.patientNom ?? 'En attente' }}</span>
+      </article>
+      <article class="hero-mini-card">
+        <p>RDV annules</p>
+        <strong>{{ planningStats().annules }}</strong>
+        <span>Suivi administratif</span>
+      </article>
+      <article class="hero-mini-card">
+        <p>Occupation</p>
+        <strong>{{ occupationMedicale() }}%</strong>
+        <span>{{ medecinsActifs() }} equipes actives</span>
+      </article>
+    </div>
   </section>
 
-  <section class="insights-grid top-insights">
-    <article class="card alert-card">
-      <div class="section-head">
-        <div>
-          <h3>Alertes prioritaires</h3>
-          <p class="subtitle">Signaux rapides pour la coordination clinique.</p>
+  <section class="kpi-grid">
+    @for (card of dashboardKpis(); track card.label) {
+      <article class="kpi-card" [ngClass]="card.tone">
+        <div class="kpi-head">
+          <div class="kpi-icon">{{ card.icon }}</div>
+          @if (card.trend) {
+            <span class="kpi-trend">{{ card.trend }}</span>
+          }
         </div>
-      </div>
-
-      <div class="alerts-list">
-        @for (alerte of alertesPrioritaires(); track alerte.titre) {
-          <div class="alert-line" [class]="'alert-line ' + alerte.niveau">
-            <p>{{ alerte.titre }}</p>
-            <span>{{ alerte.detail }}</span>
-          </div>
-        }
-      </div>
-    </article>
-
-    <article class="card quick-actions-card">
-      <div class="section-head">
-        <div>
-          <h3>Actions rapides</h3>
-          <p class="subtitle">Acces direct aux operations frequentes.</p>
+        <strong>{{ formatKpiNumber(card.value) }}</strong>
+        <p>{{ card.label }}</p>
+        <div class="spark">
+          @for (point of card.spark; track $index) {
+            <span [style.height.%]="point"></span>
+          }
         </div>
-      </div>
-
-      <div class="quick-actions-grid">
-        @for (action of quickActions; track action.path) {
-          <a [routerLink]="action.path" class="quick-action-item">
-            <strong>{{ action.label }}</strong>
-            <span>{{ action.description }}</span>
-          </a>
-        }
-      </div>
-    </article>
+      </article>
+    }
   </section>
 
-  <section class="insights-grid second">
-    <article class="card agenda-card">
-      <h3>Agenda du jour</h3>
-      <p class="subtitle">Rendez-vous prevus aujourd'hui, classes par heure.</p>
+  <section class="overview-grid">
+    <article class="card notifications-card">
+      <div class="card-head">
+        <div>
+          <h3>Alertes & Notifications</h3>
+          <p><span class="headline-count">{{ notificationFeed().length }}</span> alertes actives</p>
+        </div>
+        <button type="button" class="btn btn-ghost" (click)="toggleNotifications()">
+          {{ hideNotifications() ? 'Afficher' : 'Tout effacer' }}
+        </button>
+      </div>
 
-      @if (agendaAujourdhui().length === 0) {
-        <div class="alert info">Aucun rendez-vous enregistre pour aujourd'hui.</div>
+      @if (notificationFeed().length === 0) {
+        <div class="empty-notifications">
+          <span class="empty-icon"></span>
+          <h4>Aucune alerte visible</h4>
+          <p>Les notifications importantes apparaitront ici des qu'elles seront disponibles.</p>
+          <button type="button" class="btn btn-ghost" (click)="toggleNotifications()">Reafficher les alertes</button>
+        </div>
       } @else {
-        <div class="timeline">
-          @for (item of agendaAujourdhui(); track item.id) {
-            <div class="timeline-item">
-              <p class="time">{{ item.heure_rdv }}</p>
-              <div>
-                <p class="person">{{ item.patientNom }}</p>
-                <p class="meta">{{ item.medecinNom }} · {{ item.motif }}</p>
+        <div class="notifications-list">
+          @for (item of notificationFeed(); track item.id) {
+            <article class="notification-item" [class]="'notification-item ' + item.tone">
+              <span class="notification-icon" aria-hidden="true"></span>
+              <div class="notification-content">
+                <div class="notification-topline">
+                  <span class="notification-tone">{{ getNotificationToneLabel(item.tone) }}</span>
+                  <span class="notification-time">{{ item.timeLabel }}</span>
+                </div>
+                <h4>{{ item.title }}</h4>
+                <p>{{ item.detail }}</p>
+                <div class="notification-meta">
+                  <a [routerLink]="item.actionPath">{{ item.actionLabel }} -></a>
+                </div>
               </div>
-              <span class="status-pill" [class]="'status-pill ' + item.statut">{{ item.statut }}</span>
-            </div>
+            </article>
           }
         </div>
       }
     </article>
 
-    <article class="card upcoming-table">
-      <h3>Prochains rendez-vous</h3>
-      <p class="subtitle">Vision avancee des prochains passages en clinique.</p>
-
-      @if (prochainRendezVous().length === 0) {
-        <div class="alert info">Aucun rendez-vous programme pour le moment.</div>
-      } @else {
-        <div class="table-wrapper">
-          <table>
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Heure</th>
-                <th>Patient</th>
-                <th>Medecin</th>
-                <th>Motif</th>
-                <th>Statut</th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (item of prochainRendezVous(); track item.id) {
-                <tr>
-                  <td>{{ item.date_rdv }}</td>
-                  <td>{{ item.heure_rdv }}</td>
-                  <td>{{ item.patientNom }}</td>
-                  <td>{{ item.medecinNom }}</td>
-                  <td>{{ item.motif }}</td>
-                  <td><span class="status-pill" [class]="'status-pill ' + item.statut">{{ item.statut }}</span></td>
-                </tr>
-              }
-            </tbody>
-          </table>
+    <article class="card actions-card">
+      <div class="card-head">
+        <div>
+          <h3>Actions rapides</h3>
+          <p>Acces direct aux modules cles</p>
         </div>
-      }
+      </div>
+      <div class="actions-grid">
+        @for (action of quickActions; track action.path) {
+          <a class="action-item" [routerLink]="action.path" [ngClass]="getQuickActionTone(action.path)">
+            <span class="action-surface">
+              <span class="action-icon">{{ getQuickActionGlyph(action.path) }}</span>
+              <span class="action-arrow">-></span>
+            </span>
+            <strong>{{ action.label }}</strong>
+            <small>{{ action.description }}</small>
+          </a>
+        }
+      </div>
+      <a class="all-modules" routerLink="/patients">Voir tous les modules</a>
     </article>
   </section>
 
+  <section class="card planning-card">
+    <div class="card-head">
+      <div>
+        <h3>Planning du jour</h3>
+        <p>{{ displayDayLabel }} - {{ planningRows().length }} rendez-vous</p>
+      </div>
+      <div class="planning-head-actions">
+        <span class="status-chip confirme">{{ planningStats().confirmes }} Confirmes</span>
+        <span class="status-chip encours">{{ planningStats().enCours }} En cours</span>
+        <span class="status-chip annule">{{ planningStats().annules }} Annules</span>
+        <a class="btn btn-ghost" routerLink="/rendez-vous">Voir tout</a>
+      </div>
+    </div>
+
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th>Heure</th>
+            <th>Patient</th>
+            <th>Medecin</th>
+            <th>Type de consultation</th>
+            <th>Salle</th>
+            <th>Statut</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (row of planningRows(); track row.id) {
+            <tr>
+              <td>
+                <span class="time-cell">
+                  <i [class]="'dot ' + row.dotTone"></i>
+                  {{ row.heure }}
+                </span>
+              </td>
+              <td>
+                <div class="person-cell">
+                  <span class="avatar">{{ row.patientInitials }}</span>
+                  <div>
+                    <strong>{{ row.patientNom }}</strong>
+                    <small>Patient</small>
+                  </div>
+                </div>
+              </td>
+              <td>
+                <div class="medecin-cell">
+                  <span class="medecin-dot"></span>
+                  {{ row.medecinNom }}
+                </div>
+              </td>
+              <td><span class="type-chip">{{ row.typeConsultation }}</span></td>
+              <td><span class="room-chip">{{ row.salle }}</span></td>
+              <td><span [class]="'status-chip ' + row.statutTone">{{ row.statutLabel }}</span></td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="perf-grid">
+    <article class="card perf-card teal">
+      <div class="perf-head">
+        <span class="perf-icon"></span>
+        <strong>{{ occupationMedicale() }}%</strong>
+        <small>+3% vs hier</small>
+      </div>
+      <p>Taux d'occupation</p>
+      <div class="perf-track"><span [style.width.%]="occupationMedicale()"></span></div>
+      <em>Capacite clinique</em>
+    </article>
+
+    <article class="card perf-card amber">
+      <div class="perf-head">
+        <span class="perf-icon"></span>
+        <strong>{{ satisfactionNote() }}</strong>
+        <small>+0.2 ce mois</small>
+      </div>
+      <p>Satisfaction patients</p>
+      <div class="perf-track"><span style="width: 72%"></span></div>
+      <em>Base sur retours du mois</em>
+    </article>
+
+    <article class="card perf-card blue">
+      <div class="perf-head">
+        <span class="perf-icon"></span>
+        <strong>22 min</strong>
+        <small>-2 min vs mois dernier</small>
+      </div>
+      <p>Temps moyen consult.</p>
+      <div class="perf-track"><span style="width: 66%"></span></div>
+      <em>Cycle clinique</em>
+    </article>
+  </section>
 </section>
