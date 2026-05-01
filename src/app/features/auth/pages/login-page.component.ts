@@ -19,6 +19,7 @@ export class LoginPageComponent {
 
   readonly loadingState = signal(false);
   readonly errorMessage = signal('');
+  readonly currentYear = new Date().getFullYear();
 
   readonly form = this.fb.group({
     email: ['', [Validators.required, Validators.email]],
@@ -27,8 +28,8 @@ export class LoginPageComponent {
 
   readonly demoAccounts = [
     { role: 'Administrateur', email: 'admin@senclinic.sn', mot_de_passe: 'admin123' },
-    { role: 'Medecin', email: 'medecin@senclinic.sn', mot_de_passe: 'medecin123' },
-    { role: 'Secretaire', email: 'secretaire@senclinic.sn', mot_de_passe: 'secretaire123' }
+    { role: 'Médecin', email: 'medecin@senclinic.sn', mot_de_passe: 'medecin123' },
+    { role: 'Secrétaire', email: 'secretaire@senclinic.sn', mot_de_passe: 'secretaire123' }
   ];
 
   constructor() {
